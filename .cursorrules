@@ -16,6 +16,8 @@
 # OpenAI
 - Prefer gpt-4o-mini for all LLM calls
 - Use OpenAI's pydantic_function_tool for tools
+- Pydantic models used in response_format must not have dict[] and string field can't have defaults
+
 
 # Quick Guide: OpenAI Tools with Pydantic
 
@@ -92,3 +94,7 @@ class MainModel(BaseModel):
 ```
 
 That's it! Keep it simple, let the tools do the work.
+
+# NetworkX
+Note: When using NetworkX's DiGraph class, do not attempt to add type parameters or make it generic (e.g. DiGraph[str, int]). DiGraph is not designed to be subscriptable and should be used directly as DiGraph(). Node and edge attribute types are handled internally by NetworkX.
+
