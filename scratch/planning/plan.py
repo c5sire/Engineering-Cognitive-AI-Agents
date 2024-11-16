@@ -1,183 +1,19 @@
-import json
 from collections.abc import Callable
 from typing import (
   Any,
-  TypeVar,
   cast,
 )
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from openai import OpenAI
-from openai.types.chat import (
-  ChatCompletionMessageParam,
-  ChatCompletionSystemMessageParam,
-  ChatCompletionToolMessageParam,
-  ChatCompletionToolParam,
-  ChatCompletionUserMessageParam,
+from matplotlib.figure import Figure
+from matplotlib.text import Text
+from networkx import DiGraph
+from prompt import (
+  CompletionConfig,
+  PromptHandler,
 )
 from pydantic import BaseModel, Field
-
-T = TypeVar("T", bound=BaseModel)
-
-
-# ------------------------------------------------------------------------------
-
-
-class CompletionConfig(BaseModel):
-  """Configuration for completions with type safety"""
-
-  model: str = "gpt-4o-mini"
-  temperature: float = Field(
-    default=0.7, ge=0.0, le=2.0
-  )
-  max_tokens: int | None = Field(default=None, gt=0)
-  system_message: str | None = None
-  tools: list[ChatCompletionToolParam] | None = None
-  response_format: type[T] | None = None
-
-
-class PromptHandler:
-  """Unified prompt handler that automatically selects appropriate mode:
-  1. If response_format provided -> Structured Pydantic response
-  2. If tools provided -> Tool calling
-  3. Otherwise -> Plain text completion
-  """
-
-  def __init__(self, api_key: str | None = None):
-    self.client = OpenAI(api_key=api_key)
-
-  def _build_messages(
-    self,
-    instruction: str,
-    config: CompletionConfig,
-  ) -> list[ChatCompletionMessageParam]:
-    """Builds message list for completion request"""
-    messages: list[ChatCompletionMessageParam] = []
-
-    if config.system_message:
-      messages.append(
-        ChatCompletionSystemMessageParam(
-          role="system",
-          content=config.system_message,
-        ),
-      )
-
-    messages.append(
-      ChatCompletionUserMessageParam(
-        role="user",
-        content=instruction,
-      ),
-    )
-
-    return messages
-
-  def complete[T](
-    self,
-    instruction: str,
-    *,
-    config: CompletionConfig | None = None,
-    context_functions: dict[str, Callable[..., Any]]
-    | None = None,
-  ) -> str | T:
-    """Unified completion method that handles all response types
-
-    Args:
-        instruction: The prompt instruction
-        config: Optional completion configuration
-        context_functions: Required when using tools
-
-    Returns:
-        String response or parsed Pydantic model
-
-    Raises:
-        ValueError: If tools used without context_functions
-        ValueError: If no content in response
-    """
-    config = config or CompletionConfig()
-    messages = self._build_messages(
-      instruction, config
-    )
-
-    # Case 1: Structured Pydantic response
-    if config.response_format is not None:
-      response = (
-        self.client.beta.chat.completions.parse(
-          model=config.model,
-          messages=messages,
-          response_format=config.response_format,
-          temperature=config.temperature,
-          max_tokens=config.max_tokens,
-        )
-      )
-
-      parsed = response.choices[0].message.parsed
-      if parsed is None:
-        raise ValueError("Failed to parse response")
-
-      return parsed
-
-    # Case 2: Tool calling
-    if config.tools is not None:
-      if context_functions is None:
-        raise ValueError(
-          "context_functions required when using tools"
-        )
-
-      response = self.client.chat.completions.create(
-        model=config.model,
-        messages=messages,
-        tools=config.tools,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-      )
-
-      if response.choices[0].message.tool_calls:
-        for tool_call in response.choices[
-          0
-        ].message.tool_calls:
-          function_name = tool_call.function.name
-          function_args = json.loads(
-            tool_call.function.arguments
-          )
-
-          if function_name not in context_functions:
-            raise ValueError(
-              f"Tool '{function_name}' not found"
-            )
-
-          result = context_functions[function_name](
-            **function_args
-          )
-          messages.append(
-            ChatCompletionToolMessageParam(
-              role="tool",
-              tool_call_id=tool_call.id,
-              content=str(result),
-            ),
-          )
-
-        response = self.client.chat.completions.create(
-          model=config.model,
-          messages=messages,
-          temperature=config.temperature,
-          max_tokens=config.max_tokens,
-        )
-
-    # Case 3: Plain text completion
-    response = self.client.chat.completions.create(
-      model=config.model,
-      messages=messages,
-      temperature=config.temperature,
-      max_tokens=config.max_tokens,
-    )
-
-    content = response.choices[0].message.content
-    if content is None:
-      raise ValueError("No content in response")
-
-    return content
-
 
 # ------------------------------------------------------------------------------
 
@@ -231,9 +67,9 @@ class TaskSystem(BaseModel):
 
   tasks: dict[str, Task]
 
-  def get_task_graph(self) -> Any:
+  def get_task_graph(self) -> DiGraph:
     """Creates a directed graph of task dependencies"""
-    G: Any = nx.DiGraph()
+    G: DiGraph = nx.DiGraph()
 
     # Add all tasks as nodes with explicit typing for attributes
     for task in self.tasks.values():
@@ -257,10 +93,12 @@ class TaskSystem(BaseModel):
 
   def visualize(self) -> None:
     """Visualizes the task dependency graph"""
-    G: Any = self.get_task_graph()
-    pos: Any = nx.spring_layout(G, seed=42)
+    G: DiGraph = self.get_task_graph()
+    pos: dict[str, tuple[float, float]] = (
+      nx.spring_layout(G, seed=42)
+    )
 
-    _ = plt.figure(figsize=(12, 8))
+    _: Figure = plt.figure(figsize=(12, 8))
     nx.draw(
       G,
       pos,
@@ -272,24 +110,27 @@ class TaskSystem(BaseModel):
     )
 
     # Add output keys as node labels
-    output_labels = {
+    output_labels: dict[str, str] = {
       task.name: f"{task.name}\n({task.output_key})"
       for task in self.tasks.values()
     }
     nx.draw_networkx_labels(G, pos, output_labels)
 
-    _ = plt.title("Task Dependency Graph")
+    _: Text = plt.title("Task Dependency Graph")
     plt.show()
 
   def validate_dependencies(
     self, context: TaskContext
   ):
-    """Validates that all task dependencies can be resolved
+    """Validates that all task dependencies can be resolved and prompt tasks have instructions
 
     Args:
         context: TaskContext containing working memory and functions
+
+    Raises:
+        ValueError: If dependencies cannot be resolved or prompt tasks lack instructions
     """
-    G: Any = self.get_task_graph()
+    G: DiGraph = self.get_task_graph()
     if not nx.is_directed_acyclic_graph(G):
       raise ValueError("Task graph contains cycles")
 
@@ -300,6 +141,7 @@ class TaskSystem(BaseModel):
 
     # Ensure all inputs have producers or are in working memory
     for task in self.tasks.values():
+      # Validate task inputs
       input_mapping = task.get_input_mapping()
       for input in task.inputs:
         source_key = input_mapping[
@@ -312,6 +154,16 @@ class TaskSystem(BaseModel):
           raise ValueError(
             f"No task produces required input '{source_key}' (mapped from '{input.key}') "
             f"for task '{task.name}' and it's not present in working memory"
+          )
+
+      # Validate prompt tasks have instructions
+      if not task.tool_name and not isinstance(
+        task, PlanTask
+      ):
+        if task.name not in context.instructions:
+          raise ValueError(
+            f"No instructions found for prompt task: {task.name}\n"
+            f"Available instructions: {list(context.instructions.keys())}"
           )
 
 
@@ -340,24 +192,51 @@ class TaskExecutor:
 
   def execute_task(self, task: Task) -> str:
     """Executes a single task with input mapping"""
+    print(f"\nExecuting task: {task.name}")
+    print(f"Output key: {task.output_key}")
+
     # Get the input mapping
     input_mapping = task.get_input_mapping()
+    print("Input mapping:", input_mapping)
 
-    # Gather input values with mapping
+    # Gather input values with mapping and validate
     input_values = {}
+    missing_inputs: list[tuple[str, str]] = []
     for input in task.inputs:
       source_key = input_mapping[input.key]
+      print(
+        f"  Checking input: {input.key} (source: {source_key})"
+      )
+
       if source_key not in self.context.working_memory:
-        raise ValueError(
-          f"Missing required input: {source_key}"
-        )
+        missing_inputs.append((input.key, source_key))
+        continue
+
       input_values[input.key] = (
         self.context.working_memory[source_key]
       )
+      print(f"    ✓ Found value for {input.key}")
 
+    if missing_inputs:
+      error_msg = "\nMissing required inputs:"
+      for input_key, source_key in missing_inputs:
+        error_msg += f"\n  - {input_key} (expected from: {source_key})"
+      error_msg += (
+        "\n\nCurrent working memory contents:"
+      )
+      for (
+        key,
+        value,
+      ) in self.context.working_memory.items():
+        error_msg += f"\n  - {key}: {value}"
+      raise ValueError(error_msg)
+
+    # Execute based on task type
     if isinstance(task, PlanTask):
+      print("  Executing plan task")
       result = execute_plan_task(task, **input_values)
-    elif task.tool_name:  # Execute tool
+    elif task.tool_name:
+      print(f"  Executing tool: {task.tool_name}")
       if task.tool_name not in self.context.functions:
         raise ValueError(
           f"Tool not found: {task.tool_name}"
@@ -368,10 +247,12 @@ class TaskExecutor:
           **input_values
         ),
       )
-    else:  # Execute prompt
+    else:
+      print("  Executing prompt task")
       if task.name not in self.context.instructions:
         raise ValueError(
-          f"No instructions found for prompt task: {task.name}"
+          f"No instructions found for prompt task: {task.name}\n"
+          f"Available instructions: {list(self.context.instructions.keys())}"
         )
 
       config = self.context.prompt_configs.get(
@@ -379,13 +260,33 @@ class TaskExecutor:
       )
       instruction = self.context.instructions[
         task.name
-      ].format(**input_values)
-      result = self.prompt_handler.complete(
-        instruction,
-        config=config,
-        context_functions=self.context.functions,
+      ]
+      try:
+        formatted_instruction = instruction.format(
+          **input_values
+        )
+      except KeyError as e:
+        raise ValueError(
+          f"Failed to format instruction for task '{task.name}'. "
+          f"Missing key: {e}\n"
+          f"Available values: {list(input_values.keys())}\n"
+          f"Instruction template: {instruction}"
+        )
+
+      result: str | BaseModel = (
+        self.prompt_handler.complete(
+          formatted_instruction,
+          config=config,
+          context_functions=self.context.functions,
+        )
       )
 
+      if isinstance(result, BaseModel):
+        result = str(result)
+
+    print(
+      f"  ✓ Task completed. Output: {result[:100]}..."
+    )
     self.context.working_memory[task.output_key] = (
       result
     )
@@ -393,9 +294,14 @@ class TaskExecutor:
 
   def resolve_and_execute(self, task_name: str) -> str:
     """Resolves dependencies and executes a task"""
+    print(
+      f"\nResolving dependencies for task: {task_name}"
+    )
+
     if task_name in self._execution_stack:
       raise ValueError(
-        f"Circular dependency detected for task: {task_name}"
+        f"Circular dependency detected for task: {task_name}\n"
+        f"Execution stack: {' -> '.join(self._execution_stack)}"
       )
 
     self._execution_stack.add(task_name)
@@ -407,6 +313,9 @@ class TaskExecutor:
         if (
           input.key not in self.context.working_memory
         ):
+          print(
+            f"  Looking for producer of: {input.key}"
+          )
           producer_task = next(
             (
               t
@@ -416,8 +325,15 @@ class TaskExecutor:
             None,
           )
           if producer_task:
+            print(
+              f"    Found producer: {producer_task.name}"
+            )
             self.resolve_and_execute(
               producer_task.name
+            )
+          else:
+            print(
+              f"    No producer found for: {input.key}"
             )
 
       return self.execute_task(task)
@@ -461,7 +377,7 @@ class Plan(BaseModel):
 
   def get_task_graph(
     self, include_nested: bool = True
-  ) -> nx.DiGraph:
+  ) -> DiGraph:
     """Creates a directed graph of task dependencies
 
     Args:
@@ -470,7 +386,7 @@ class Plan(BaseModel):
     Returns:
         A directed graph representing task dependencies
     """
-    G = nx.DiGraph()
+    G: DiGraph = nx.DiGraph()
 
     # Add all tasks as nodes
     for task in self.tasks.values():
@@ -522,23 +438,21 @@ class Plan(BaseModel):
   def visualize(
     self, include_nested: bool = True
   ) -> None:
-    """Visualizes the plan's task dependency graph
+    """Visualizes the plan's task dependency graph"""
+    G: DiGraph = self.get_task_graph(include_nested)
+    pos: dict[str, tuple[float, float]] = (
+      nx.spring_layout(G, seed=42)
+    )
 
-    Args:
-        include_nested: If True, includes tasks from nested plans
-    """
-    G = self.get_task_graph(include_nested)
-    pos = nx.spring_layout(G, seed=42)
-
-    plt.figure(figsize=(12, 8))
+    _: Figure = plt.figure(figsize=(12, 8))
 
     # Draw nodes with different colors based on type
-    plan_tasks = [
+    plan_tasks: list[str] = [
       n
       for n, d in G.nodes(data=True)
       if d.get("type") == "plan_task"
     ]
-    regular_tasks = [
+    regular_tasks: list[str] = [
       n
       for n, d in G.nodes(data=True)
       if d.get("type") == "task"
@@ -563,13 +477,13 @@ class Plan(BaseModel):
     nx.draw_networkx_edges(G, pos)
 
     # Add labels with output keys
-    labels = {
+    labels: dict[str, str] = {
       task: f"{task}\n({G.nodes[task]['output']})"
       for task in G.nodes()
     }
     nx.draw_networkx_labels(G, pos, labels)
 
-    plt.title(
+    _: Text = plt.title(
       f"Task Dependency Graph for Plan: {self.name}"
     )
     plt.show()
@@ -711,18 +625,11 @@ def execute_plan_task(
   return results[updated_plan.desired_outputs[0]]
 
 
-# ------------------------------------------------------------------------------
+def test():
+  # Example function
+  def get_project_request(project_id: str) -> str:
+    return f"Project request details for {project_id}"
 
-
-# Example function
-def get_project_request(project_id: str) -> str:
-  return f"Project request details for {project_id}"
-
-
-# ------------------------------------------------------------------------------
-
-
-def main() -> None:
   # Define a nested plan for handling project requests
   request_plan = Plan(
     name="get_project_details",
@@ -810,4 +717,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-  main()
+  test()
