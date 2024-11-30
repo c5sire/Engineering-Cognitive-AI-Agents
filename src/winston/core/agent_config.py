@@ -2,8 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
+from jinja2 import Template
 from pydantic import BaseModel, Field
 
 
@@ -16,8 +18,10 @@ class AgentConfig(BaseModel):
   model: str = Field(
     ..., description="Model to use for the agent"
   )
-  system_prompt: str = Field(
-    ..., description="System prompt for the agent"
+  system_prompt_template: str = Field(
+    ...,
+    description="Jinja2 template for system prompt",
+    alias="system_prompt",
   )
   temperature: float = Field(
     default=0.7,
@@ -41,6 +45,24 @@ class AgentConfig(BaseModel):
     default="default",
     description="Workspace template to use",
   )
+
+  def render_system_prompt(
+    self, metadata: dict[str, Any]
+  ) -> str:
+    """Render system prompt template with metadata.
+
+    Parameters
+    ----------
+    metadata : dict[str, Any]
+        Metadata to render the template with
+
+    Returns
+    -------
+    str
+        Rendered system prompt
+    """
+    template = Template(self.system_prompt_template)
+    return template.render(**metadata)
 
   @classmethod
   def from_yaml(

@@ -12,7 +12,7 @@
 -e file:.
 aiofiles==23.2.1
     # via chainlit
-aiohappyeyeballs==2.4.3
+aiohappyeyeballs==2.4.4
     # via aiohttp
 aiohttp==3.11.8
     # via litellm
@@ -157,6 +157,7 @@ iniconfig==2.0.0
 jieba3k==0.35.1
     # via newspaper3k
 jinja2==3.1.4
+    # via ecaa
     # via litellm
     # via torch
 jiter==0.8.0
@@ -192,7 +193,7 @@ markupsafe==3.0.2
     # via jinja2
 marshmallow==3.23.1
     # via dataclasses-json
-matplotlib==3.9.2
+matplotlib==3.9.3
     # via ecaa
 mdurl==0.1.2
     # via markdown-it-py

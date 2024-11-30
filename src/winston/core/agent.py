@@ -203,10 +203,14 @@ class BaseAgent(Agent):
     """Prepare messages for LLM."""
     messages: list[ChatCompletionMessageParam] = []
 
-    if self.config.system_prompt:
+    if self.config.system_prompt_template:
+      # Render template with message metadata
+      system_prompt = self.config.render_system_prompt(
+        message.metadata
+      )
       messages.append(
         Message.system(
-          self.config.system_prompt
+          system_prompt
         ).to_chat_completion_message()
       )
 
