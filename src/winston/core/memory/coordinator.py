@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 
 from winston.core.agent import BaseAgent
+from winston.core.agent_config import AgentConfig
 from winston.core.memory.embeddings import (
   EmbeddingStore,
 )
@@ -10,6 +11,8 @@ from winston.core.memory.storage import (
   KnowledgeStorage,
 )
 from winston.core.messages import Response
+from winston.core.paths import AgentPaths
+from winston.core.system import AgentSystem
 from winston.core.tools import Tool
 
 
@@ -44,7 +47,12 @@ class RetrieveKnowledgeRequest(BaseModel):
 class MemoryCoordinator(BaseAgent):
   """Coordinates memory operations between specialists."""
 
-  def __init__(self, system, config, paths):
+  def __init__(
+    self,
+    system: AgentSystem,
+    config: AgentConfig,
+    paths: AgentPaths,
+  ) -> None:
     super().__init__(system, config, paths)
 
     # Initialize storage components

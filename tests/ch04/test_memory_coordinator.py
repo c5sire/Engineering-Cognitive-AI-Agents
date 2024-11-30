@@ -25,7 +25,7 @@ def paths():
   """Create temporary paths."""
   with tempfile.TemporaryDirectory() as temp_dir:
     temp_root = Path(temp_dir)
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
 
     yield AgentPaths(
       root=temp_root,
