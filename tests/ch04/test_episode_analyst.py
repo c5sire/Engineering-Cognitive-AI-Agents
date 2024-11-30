@@ -16,8 +16,9 @@ from winston.core.system import AgentSystem
 
 @pytest.mark.asyncio
 async def test_episode_analysis():
-  """Test episode analysis and tool selection."""
+  """Test episode analysis and boundary detection."""
   # Setup
+  print("Starting test_episode_analysis")
   with tempfile.TemporaryDirectory() as temp_dir:
     temp_root = Path(temp_dir)
     project_root = Path(__file__).parent.parent.parent
@@ -45,7 +46,7 @@ async def test_episode_analysis():
         - Context: Family tradition
         """
 
-    # Test 1: Information Update
+    # Test 1: Information Update (Not new episode)
     update_msg = Message(
       content="Actually, I've switched to tea",
       metadata={
@@ -53,12 +54,18 @@ async def test_episode_analysis():
       },
     )
 
+    print(
+      "Starting Test 1: Information Update"
+    )  # Debug output
     async for response in analyst.process(update_msg):
-      # Should indicate update (not new episode)
-      # Should preserve morning/family context
-      # Should call update_content tool (not clear_workspace)
-      print(f"Update response: {response.content}")
-      print(f"Metadata: {response.metadata}")
+      # Should indicate not a new episode
+      # Should indicate preserving morning/family context
+      print(
+        f"Update response: {response.content}"
+      )  # Debug output
+      print(
+        f"Metadata: {response.metadata}"
+      )  # Debug output
 
     # Test 2: New Episode
     new_topic_msg = Message(
@@ -68,11 +75,17 @@ async def test_episode_analysis():
       },
     )
 
+    print(
+      "Starting Test 2: New Episode"
+    )  # Debug output
     async for response in analyst.process(
       new_topic_msg
     ):
       # Should indicate new episode
-      # Should not maintain previous context
-      # Should call clear_workspace tool
-      print(f"New topic response: {response.content}")
-      print(f"Metadata: {response.metadata}")
+      # Should indicate no context preservation
+      print(
+        f"New topic response: {response.content}"
+      )  # Debug output
+      print(
+        f"Metadata: {response.metadata}"
+      )  # Debug output
