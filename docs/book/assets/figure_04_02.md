@@ -1,0 +1,16 @@
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant MC as Memory Coordinator
+    participant Z as Zettelkasten
+    participant H as Human Learning
+    participant W as Workspace
+
+    U->>MC: Provides feedback
+    Note over MC: Evaluates as feedback
+    MC->>H: Process feedback
+    H->>MC: Returns processed feedback
+    MC->>Z: Update knowledge
+    Z->>MC: Knowledge updated
+    MC->>W: Update workspace
+```

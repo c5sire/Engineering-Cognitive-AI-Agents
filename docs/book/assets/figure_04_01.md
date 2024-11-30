@@ -1,0 +1,29 @@
+```mermaid
+---
+config:
+  layout: elk
+  theme: neo
+  look: neo
+---
+flowchart TD
+ subgraph subGraph0["Immediate Processing"]
+        MC["Memory Coordinator"]
+        Z["Zettelkasten"]
+        H["Human Learning"]
+        W["Shared Workspace"]
+  end
+ subgraph subGraph1["Background Analysis"]
+        P["Pattern Recognition"]
+  end
+    MC -- Delegates To --> Z
+    MC -- Delegates To --> H
+    Z -- Reports --> MC
+    H -- Reports --> MC
+    MC -- Maintains --> W
+    MC -- Delegates To --> P
+    P -- Reports --> MC
+    style MC fill:#f9f,stroke:#333,stroke-width:2px
+    style Z fill:#bfb,stroke:#333,stroke-width:2px
+    style W fill:#bbf,stroke:#333,stroke-width:2px
+    style P fill:#ffb,stroke:#333,stroke-width:2px
+```

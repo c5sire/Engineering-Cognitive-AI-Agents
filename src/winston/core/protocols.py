@@ -220,7 +220,7 @@ class System(Protocol):
     agent_id: str,
     function_name: str,
     args: dict[str, Any],
-  ) -> Response:
+  ) -> AsyncIterator[Response]:
     """Invoke a function with the given arguments.
 
     Parameters

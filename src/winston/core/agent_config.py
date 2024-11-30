@@ -1,26 +1,46 @@
 """Core agent interfaces and base implementation."""
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
-@dataclass
 class AgentConfig(BaseModel):
   """Enhanced agent configuration with validation."""
 
-  id: str
-  model: str
-  vision_model: str | None = None
-  system_prompt: str
-  temperature: float = 0.7
-  stream: bool = True
-  max_retries: int = 3
-  timeout: float = 30.0
-  workspace_template: str | None = None
+  id: str = Field(
+    ..., description="Unique identifier for the agent"
+  )
+  model: str = Field(
+    ..., description="Model to use for the agent"
+  )
+  system_prompt: str = Field(
+    ..., description="System prompt for the agent"
+  )
+  temperature: float = Field(
+    default=0.7,
+    description="Temperature for model sampling",
+  )
+  stream: bool = Field(
+    default=True,
+    description="Whether to stream responses",
+  )
+  vision_model: str | None = Field(
+    default=None,
+    description="Model to use for vision tasks",
+  )
+  max_retries: int = Field(
+    default=3, description="Maximum number of retries"
+  )
+  timeout: int = Field(
+    default=60, description="Timeout in seconds"
+  )
+  workspace_template: str = Field(
+    default="default",
+    description="Workspace template to use",
+  )
 
   @classmethod
   def from_yaml(

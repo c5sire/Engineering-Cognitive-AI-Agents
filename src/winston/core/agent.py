@@ -191,7 +191,7 @@ class BaseAgent(Agent):
         )
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(e)
       yield Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -554,3 +554,25 @@ class BaseAgent(Agent):
         content=f"Error processing image: {str(e)}",
         metadata={"error": True},
       )
+
+  async def process(
+    self,
+    message: Message,
+  ) -> AsyncIterator[Response]:
+    """Process messages to coordinate memory operations.
+
+    Parameters
+    ----------
+    message : Message
+        The message to process
+
+    Yields
+    ------
+    Response
+        Responses from memory operations
+    """
+    # Let the LLM evaluate the message using system prompt and tools
+    async for response in self._handle_conversation(
+      message
+    ):
+      yield response
