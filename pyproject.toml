@@ -49,4 +49,4 @@ packages = ["src", "examples"]
 precommit = "pre-commit run --all-files"
 ch02_chat = "chainlit run examples/ch02/winston_chat.py"
 ch02_tool = "chainlit run examples/ch02/winston_tool.py"
-ch04_zettelkasten = "chainlit run examples/ch04/winston_zettelkasten.py"
+ch04_enhanced_memory = "chainlit run examples/ch04/winston_enhanced_memory.py"
