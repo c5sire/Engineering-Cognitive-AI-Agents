@@ -166,9 +166,13 @@ class BaseAgent(Agent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Handle conversation with LLM integration."""
+    logger.debug(
+      f"Handling conversation for message: {message}"
+    )
     messages = self._prepare_messages(message)
     tools = self.tool_manager.get_tools_schema()
     try:
+      logger.info("Starting LLM conversation...")
       response = await acompletion(
         model=self.config.model,
         messages=messages,
@@ -191,7 +195,9 @@ class BaseAgent(Agent):
         )
 
     except Exception as e:
-      logger.exception(e)
+      logger.exception(
+        f"Exception occurred during conversation handling: {str(e)}"
+      )
       yield Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -398,8 +404,14 @@ class BaseAgent(Agent):
     self, message: Message
   ) -> Response:
     """Generate a non-streaming response from the LLM."""
+    logger.debug(
+      f"Generating response for message: {message}"
+    )
     messages = self._prepare_messages(message)
     try:
+      logger.info(
+        "Starting LLM response generation..."
+      )
       response = await acompletion(
         model=self.config.model,
         messages=messages,
@@ -409,19 +421,22 @@ class BaseAgent(Agent):
       )
       model_response = cast(ModelResponse, response)
       if not model_response.choices:
+        logger.error("No choices in response")
         raise ValueError("No choices in response")
 
       message = model_response.choices[0].message
       if not message:
+        logger.error("No message in response")
         raise ValueError("No message in response")
 
       if message.content:
         return Response(content=message.content)
       else:
+        logger.error("No content in message")
         raise ValueError("No content in message")
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(f"LLM error occurred: {str(e)}")
       return Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},

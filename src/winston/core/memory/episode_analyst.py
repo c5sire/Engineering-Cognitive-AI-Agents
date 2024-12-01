@@ -1,5 +1,6 @@
 """Episode analysis specialist agent."""
 
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from winston.core.agent import BaseAgent
@@ -35,6 +36,8 @@ class EpisodeAnalyst(BaseAgent):
   ) -> None:
     super().__init__(system, config, paths)
 
+    logger.info("Initializing EpisodeAnalyst agent.")
+
     # Register the action tool
     self.system.register_tool(
       Tool(
@@ -46,19 +49,40 @@ class EpisodeAnalyst(BaseAgent):
       )
     )
 
+    logger.debug(
+      "Registered tool: report_episode_boundary"
+    )
+
     # Grant self access
     self.system.grant_tool_access(
       self.id, ["report_episode_boundary"]
+    )
+
+    logger.info(
+      "Granted tool access for report_episode_boundary."
     )
 
   async def _handle_boundary_report(
     self, report: EpisodeBoundaryResponse
   ) -> Response:
     """Handle the boundary detection report."""
-    return Response(
-      content="Episode boundary analyzed",
-      metadata={
-        "is_new_episode": report.is_new_episode,
-        "preserve_context": report.context_elements,
-      },
-    )
+    logger.trace(f"Handling boundary report: {report}")
+
+    try:
+      response = Response(
+        content="Episode boundary analyzed",
+        metadata={
+          "is_new_episode": report.is_new_episode,
+          "preserve_context": report.context_elements,
+        },
+      )
+      logger.info(
+        "Successfully analyzed episode boundary."
+      )
+      return response
+
+    except Exception as e:
+      logger.exception(
+        f"Error while handling boundary report: {e}"
+      )
+      raise

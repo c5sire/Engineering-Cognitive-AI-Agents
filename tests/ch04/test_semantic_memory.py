@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
 from winston.core.agent import AgentConfig
 from winston.core.memory.semantic_memory import (
@@ -18,7 +19,9 @@ from winston.core.system import AgentSystem
 @pytest.mark.asyncio
 async def test_semantic_memory_operations():
   """Test semantic memory storage and retrieval."""
-  print("Starting test_semantic_memory_operations")
+  logger.info(
+    "Starting test_semantic_memory_operations"
+  )
 
   # Setup
   with tempfile.TemporaryDirectory() as temp_dir:
@@ -46,7 +49,7 @@ async def test_semantic_memory_operations():
         "relevance_query": "beverage preferences and routines",
       },
     )
-    print("Test 1: Storing initial knowledge")
+    logger.info("Test 1: Storing initial knowledge")
 
     storage_response = {}
     async for response in specialist.process(
@@ -56,7 +59,7 @@ async def test_semantic_memory_operations():
         continue
       storage_response = json.loads(response.content)
 
-    print(
+    logger.debug(
       f"Storage response received: {storage_response}"
     )
 
@@ -88,7 +91,7 @@ async def test_semantic_memory_operations():
         "relevance_query": "morning beverage preferences",
       },
     )
-    print("Test 2: Retrieving knowledge")
+    logger.info("Test 2: Retrieving knowledge")
 
     retrieval_response = {}
     async for response in specialist.process(
@@ -98,7 +101,7 @@ async def test_semantic_memory_operations():
         continue
       retrieval_response = json.loads(response.content)
 
-    print(
+    logger.debug(
       f"Retrieval response received: {retrieval_response}"
     )
 
@@ -128,7 +131,7 @@ async def test_semantic_memory_operations():
         "relevance_query": "beverage preference update",
       },
     )
-    print("Test 3: Updating knowledge")
+    logger.info("Test 3: Updating knowledge")
 
     update_response = {}
     async for response in specialist.process(
@@ -138,7 +141,7 @@ async def test_semantic_memory_operations():
         continue
       update_response = json.loads(response.content)
 
-    print(
+    logger.debug(
       f"Update response received: {update_response}"
     )
 
@@ -158,7 +161,7 @@ async def test_semantic_memory_operations():
         "relevance_query": "beverage preference history",
       },
     )
-    print("Test 4: Retrieving updated knowledge")
+    logger.info("Test 4: Retrieving updated knowledge")
 
     final_response = None
     async for response in specialist.process(
@@ -168,7 +171,9 @@ async def test_semantic_memory_operations():
         continue
       final_response = json.loads(response.content)
 
-    print("Final response received:", final_response)
+    logger.debug(
+      f"Final response received: {final_response}"
+    )
 
     # Should find both old and new preferences
     assert final_response is not None

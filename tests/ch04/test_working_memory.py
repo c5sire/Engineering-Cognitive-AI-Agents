@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
 from winston.core.agent import AgentConfig
 from winston.core.memory.working_memory import (
@@ -18,11 +19,13 @@ from winston.core.system import AgentSystem
 @pytest.mark.asyncio
 async def test_working_memory_operations():
   """Test working memory update and integration."""
-  print("Starting test_working_memory_operations")
+  logger.info(
+    "Starting test_working_memory_operations"
+  )
 
   # Setup
   with tempfile.TemporaryDirectory() as temp_dir:
-    print(
+    logger.debug(
       f"Temporary directory created at: {temp_dir}"
     )
     temp_root = Path(temp_dir)
@@ -31,7 +34,7 @@ async def test_working_memory_operations():
       root=temp_root,
       system_root=project_root,
     )
-    print(
+    logger.debug(
       f"Agent paths set up with root: {temp_root} and system root: {project_root}"
     )
 
@@ -40,12 +43,14 @@ async def test_working_memory_operations():
       paths.system_agents_config
       / "working_memory.yaml"
     )
-    print("Agent system and configuration loaded.")
+    logger.info(
+      "Agent system and configuration loaded."
+    )
 
     specialist = WorkingMemorySpecialist(
       system, config, paths
     )
-    print("WorkingMemorySpecialist initialized.")
+    logger.info("WorkingMemorySpecialist initialized.")
 
     # Initial workspace content
     workspace_content = """
@@ -58,7 +63,7 @@ async def test_working_memory_operations():
         - Time: Early morning
         - Context: Family tradition
         """
-    print("Initial workspace content set.")
+    logger.debug("Initial workspace content set.")
 
     # Test 1: Basic Update
     update_msg = Message(
@@ -68,12 +73,12 @@ async def test_working_memory_operations():
         "relevance_query": "morning beverage preferences",
       },
     )
-    print("Test 1 message created.")
+    logger.debug("Test 1 message created.")
 
   async for response in specialist.process(update_msg):
-    print("Processing update message...")
+    logger.debug("Processing update message...")
     updated = response.content
-    print(f"Response received: {updated}")
+    logger.debug(f"Response received: {updated}")
 
     # Parse the JSON response to get workspace content
     response_data = json.loads(updated)
@@ -99,7 +104,7 @@ async def test_working_memory_operations():
         - Prefers herbal tea in evenings
         - Enjoys green tea after meals
         """
-    print("Retrieved context set.")
+    logger.debug("Retrieved context set.")
 
     context_msg = Message(
       content="I like chamomile tea before bed",
@@ -109,14 +114,14 @@ async def test_working_memory_operations():
         "relevance_query": "tea preferences and timing",
       },
     )
-    print("Test 2 message created.")
+    logger.debug("Test 2 message created.")
 
     async for response in specialist.process(
       context_msg
     ):
-      print("Processing context message...")
+      logger.debug("Processing context message...")
       updated = response.content
-      print(f"Response received: {updated}")
+      logger.debug(f"Response received: {updated}")
 
       # Parse JSON response
       response_data = json.loads(updated)
@@ -146,14 +151,14 @@ async def test_working_memory_operations():
         "relevance_query": "tea preferences and experiences",
       },
     )
-    print("Test 3 message created.")
+    logger.debug("Test 3 message created.")
 
     async for response in specialist.process(
       complex_msg
     ):
-      print("Processing complex message...")
+      logger.debug("Processing complex message...")
       updated = response.content
-      print(f"Response received: {updated}")
+      logger.debug(f"Response received: {updated}")
 
       # Parse JSON response
       response_data = json.loads(updated)
@@ -177,4 +182,6 @@ async def test_working_memory_operations():
       assert (
         "perfect" in workspace_content.lower()
       )  # Includes evaluations
-  print("Finished test_working_memory_operations")
+  logger.info(
+    "Finished test_working_memory_operations"
+  )

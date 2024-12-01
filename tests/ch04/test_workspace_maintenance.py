@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
 from winston.core.agent import AgentConfig
 from winston.core.memory.coordinator import (
@@ -19,6 +20,9 @@ async def test_shared_workspace_lifecycle():
   """Test shared workspace maintenance using coffee preference example."""
   # Setup
   with tempfile.TemporaryDirectory() as temp_dir:
+    logger.info(
+      "Created temporary directory for testing."
+    )
     temp_root = Path(temp_dir)
     project_root = Path(__file__).parent.parent.parent
     paths = AgentPaths(
@@ -39,19 +43,24 @@ async def test_shared_workspace_lifecycle():
     shared_workspace = (
       paths.workspaces / "shared_test.md"
     )
+    logger.debug(
+      f"Shared workspace path created: {shared_workspace}"
+    )
 
     # 1. Initial statement
     message = Message(
       content="I usually drink coffee in the morning, like my father used to",
       metadata={"shared_workspace": shared_workspace},
     )
+    logger.trace("Processing initial message.")
 
     # Process message
     async for _ in coordinator.process(message):
-      pass
+      logger.debug("Message processed successfully.")
 
     # Verify shared workspace content
     content = shared_workspace.read_text()
+    logger.info("Verifying shared workspace content.")
     assert "coffee" in content.lower()
     assert "morning" in content.lower()
     assert "father" in content.lower()
@@ -61,13 +70,17 @@ async def test_shared_workspace_lifecycle():
       content="Actually, I've switched to tea",
       metadata={"shared_workspace": shared_workspace},
     )
+    logger.info("Processing update message.")
 
     # Process update
     async for _ in coordinator.process(update):
-      pass
+      logger.debug(
+        "Update message processed successfully."
+      )
 
     # Verify workspace reflects change while maintaining context
     updated = shared_workspace.read_text()
+    logger.info("Verifying updated workspace content.")
     assert "tea" in updated.lower()
     assert "switched from coffee" in updated.lower()
     assert (

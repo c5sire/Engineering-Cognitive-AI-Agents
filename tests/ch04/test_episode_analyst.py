@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
 from winston.core.agent import AgentConfig
 from winston.core.memory.episode_analyst import (
@@ -18,7 +19,7 @@ from winston.core.system import AgentSystem
 async def test_episode_analysis():
   """Test episode analysis and boundary detection."""
   # Setup
-  print("Starting test_episode_analysis")
+  logger.info("Starting test_episode_analysis")
   with tempfile.TemporaryDirectory() as temp_dir:
     temp_root = Path(temp_dir)
     project_root = Path(__file__).parent.parent.parent
@@ -54,16 +55,16 @@ async def test_episode_analysis():
       },
     )
 
-    print(
+    logger.debug(
       "Starting Test 1: Information Update"
     )  # Debug output
     async for response in analyst.process(update_msg):
       # Should indicate not a new episode
       # Should indicate preserving morning/family context
-      print(
+      logger.info(
         f"Update response: {response.content}"
-      )  # Debug output
-      print(
+      )  # Info output
+      logger.debug(
         f"Metadata: {response.metadata}"
       )  # Debug output
 
@@ -75,7 +76,7 @@ async def test_episode_analysis():
       },
     )
 
-    print(
+    logger.debug(
       "Starting Test 2: New Episode"
     )  # Debug output
     async for response in analyst.process(
@@ -83,9 +84,9 @@ async def test_episode_analysis():
     ):
       # Should indicate new episode
       # Should indicate no context preservation
-      print(
+      logger.info(
         f"New topic response: {response.content}"
-      )  # Debug output
-      print(
+      )  # Info output
+      logger.debug(
         f"Metadata: {response.metadata}"
       )  # Debug output
