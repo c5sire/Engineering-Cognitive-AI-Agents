@@ -1,51 +1,23 @@
-"""Memory Coordinator agent for managing memory operations."""
-
-from pydantic import BaseModel, Field
+from typing import AsyncIterator
 
 from winston.core.agent import BaseAgent
 from winston.core.agent_config import AgentConfig
-from winston.core.memory.embeddings import (
-  EmbeddingStore,
+from winston.core.memory.episode_analyst import (
+  EpisodeAnalyst,
 )
-from winston.core.memory.storage import (
-  KnowledgeStorage,
+from winston.core.memory.semantic_memory import (
+  SemanticMemorySpecialist,
 )
-from winston.core.messages import Response
+from winston.core.memory.working_memory import (
+  WorkingMemorySpecialist,
+)
+from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
 from winston.core.system import AgentSystem
-from winston.core.tools import Tool
-
-
-class StoreKnowledgeRequest(BaseModel):
-  """Parameters for knowledge storage."""
-
-  content: str = Field(
-    description="Content to be stored"
-  )
-  context: str = Field(
-    description="Current context and relevance"
-  )
-  importance: str = Field(
-    description="Why this knowledge is significant"
-  )
-
-
-class RetrieveKnowledgeRequest(BaseModel):
-  """Parameters for knowledge retrieval."""
-
-  query: str = Field(
-    description="What knowledge to find"
-  )
-  context: str = Field(
-    description="Current context for relevance"
-  )
-  max_results: int = Field(
-    description="Maximum number of results to return",
-  )
 
 
 class MemoryCoordinator(BaseAgent):
-  """Coordinates memory operations between specialists."""
+  """Orchestrates memory operations between specialist agents."""
 
   def __init__(
     self,
@@ -55,115 +27,73 @@ class MemoryCoordinator(BaseAgent):
   ) -> None:
     super().__init__(system, config, paths)
 
-    # Initialize storage components
-    storage_path = paths.workspaces / "knowledge"
-    embedding_path = paths.workspaces / "embeddings"
-
-    self.storage = KnowledgeStorage(storage_path)
-    self.embeddings = EmbeddingStore(embedding_path)
-
-    # Register memory tools
-    self.system.register_tool(
-      Tool(
-        name="store_knowledge",
-        description="Store important information in long-term memory",
-        handler=self._handle_store_knowledge,
-        input_model=StoreKnowledgeRequest,
-        output_model=Response,
-      )
+    # Initialize specialist agents with their own configs
+    self.episode_analyst = EpisodeAnalyst(
+      system,
+      AgentConfig.from_yaml(
+        paths.system_agents_config
+        / "episode_analyst.yaml"
+      ),
+      paths,
     )
 
-    self.system.register_tool(
-      Tool(
-        name="retrieve_knowledge",
-        description="Find relevant knowledge from memory",
-        handler=self._handle_retrieve_knowledge,
-        input_model=RetrieveKnowledgeRequest,
-        output_model=Response,
-      )
+    self.semantic_memory = SemanticMemorySpecialist(
+      system,
+      AgentConfig.from_yaml(
+        paths.system_agents_config
+        / "semantic_memory.yaml"
+      ),
+      paths,
     )
 
-    # Grant self access to tools
-    self.system.grant_tool_access(
-      self.id,
-      ["store_knowledge", "retrieve_knowledge"],
+    self.working_memory = WorkingMemorySpecialist(
+      system,
+      AgentConfig.from_yaml(
+        paths.system_agents_config
+        / "working_memory.yaml"
+      ),
+      paths,
     )
 
-  async def _handle_store_knowledge(
+  async def process(
     self,
-    request: StoreKnowledgeRequest,
-  ) -> Response:
-    """Handle knowledge storage requests."""
-    # Store in knowledge base
-    knowledge_id = await self.storage.store(
-      content=request.content,
-      context={
-        "context": request.context,
-        "importance": request.importance,
-      },
-    )
+    message: Message,
+  ) -> AsyncIterator[Response]:
+    """Orchestrate memory operations sequence."""
 
-    # Load stored knowledge
-    knowledge = await self.storage.load(knowledge_id)
-
-    # Add embedding
-    await self.embeddings.add_embedding(knowledge)
-
-    return Response(
-      content=f"Stored knowledge: {request.content[:100]}...",
-      metadata={
-        "knowledge_id": knowledge_id,
-        "formatted_response": (
-          f"I've stored that information about {request.context}. "
-          f"I'll remember it's important because {request.importance}"
-        ),
-      },
-    )
-
-  async def _handle_retrieve_knowledge(
-    self,
-    request: RetrieveKnowledgeRequest,
-  ) -> Response:
-    """Handle knowledge retrieval requests."""
-    print(f"\nSearching for: {request.query}")
-
-    # Find similar knowledge
-    matches = await self.embeddings.find_similar(
-      query=request.query, limit=request.max_results
-    )
-    print(f"Found {len(matches)} matches")
-
-    # Load full knowledge entries
-    results = []
-    for match in matches:
-      print(f"\nMatch ID: {match.id}")
-      print(f"Score: {match.score}")
-      knowledge = await self.storage.load(match.id)
-      print(f"Content: {knowledge.content}")
-      results.append(
-        f"- {knowledge.content} "
-        f"(relevance: {match.score:.2f})"
+    # Validate shared workspace requirement
+    if "shared_workspace" not in message.metadata:
+      raise ValueError(
+        "Shared workspace required for memory operations"
       )
 
-    if not results:
-      return Response(
-        content="No relevant knowledge found",
-        metadata={
-          "formatted_response": (
-            "I don't have any relevant information "
-            f"about {request.query} in that context."
-          )
-        },
-      )
+    # Let episode analyst evaluate the context shift
+    async for response in self.episode_analyst.process(
+      message
+    ):
+      episode_analysis = response
+      break
 
-    response_text = "\n".join(results)
-    return Response(
-      content=response_text,
+    # Let semantic memory specialist handle knowledge operations
+    async for response in self.semantic_memory.process(
+      message
+    ):
+      semantic_results = response
+      break
+
+    # Let working memory specialist update workspace with all context
+    workspace_message = Message(
+      content=message.content,
       metadata={
-        "formatted_response": (
-          f"Here's what I know about {request.query} "
-          f"in the context of {request.context}:\n"
-          + response_text
-        )
+        "shared_workspace": message.metadata[
+          "shared_workspace"
+        ],
+        "episode_analysis": episode_analysis.content,
+        "semantic_context": semantic_results.content,
       },
     )
+
+    async for response in self.working_memory.process(
+      workspace_message
+    ):
+      yield response
