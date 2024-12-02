@@ -165,6 +165,7 @@ class SemanticMemorySpecialist(BaseAgent):
 
       return KnowledgeResponse(
         content=request.content,
+        relevance=1.0,
         metadata={
           "id": knowledge_id,
           "context": request.context,
@@ -202,18 +203,30 @@ class SemanticMemorySpecialist(BaseAgent):
       best_result: KnowledgeItem | None = None
       for match in matches:
         knowledge = await self._storage.load(match.id)
+
+        # Ensure that the score is being calculated correctly
+        relevance_score = (
+          1.0 - match.score
+        )  # Convert distance to similarity score
+        logger.debug(
+          f"Match ID: {match.id}, Score: {match.score}, Relevance: {relevance_score}"
+        )
+
         knowledge_item = KnowledgeItem(
           content=knowledge.content,
-          relevance=match.score,
+          relevance=relevance_score,  # Assign the calculated relevance score
           metadata={
             "id": match.id,  # Include the ID
             **knowledge.context,  # Spread the rest of the context
           },
         )
-        if (
-          best_result is None
-          or match.score > best_result.relevance
+
+        if best_result is None:
+          best_result = knowledge_item
+        elif relevance_score > (
+          best_result.relevance or 0
         ):
+          lower_relevance_results.append(best_result)
           best_result = knowledge_item
         else:
           lower_relevance_results.append(
@@ -231,12 +244,19 @@ class SemanticMemorySpecialist(BaseAgent):
         )
 
       logger.info("Successfully retrieved knowledge.")
-      return KnowledgeResponse(
+
+      # Log the response before returning
+      response = KnowledgeResponse(
         content=best_result.content,
         relevance=best_result.relevance,
         metadata=best_result.metadata,
         lower_relevance_results=lower_relevance_results,
       )
+      logger.debug(
+        f"KnowledgeResponse: {response.json()}"
+      )  # Log the response content
+
+      return response
     except Exception as e:
       logger.exception(
         "Error handling retrieve knowledge request."

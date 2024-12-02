@@ -21,10 +21,6 @@ class WorkspaceUpdateRequest(BaseModel):
   current_workspace: str = Field(
     description="Current workspace content"
   )
-  retrieved_context: str | None = Field(
-    default=None,
-    description="Optional retrieved context to incorporate",
-  )
 
 
 class WorkingMemorySpecialist(BaseAgent):
@@ -70,9 +66,6 @@ class WorkingMemorySpecialist(BaseAgent):
     logger.info(
       f"Updating workspace with content: {request.content}"
     )
-    logger.debug(
-      f"Retrieved context: {request.retrieved_context}"
-    )
 
     # Define the Jinja2 template for the update prompt
     update_prompt_template = Template("""
@@ -83,11 +76,6 @@ NEW CONTENT TO INTEGRATE:
 
 CURRENT WORKSPACE:
 {{ current_workspace }}
-
-{% if retrieved_context %}
-RETRIEVED CONTEXT:
-{{ retrieved_context }}
-{% endif %}
 
 IMPORTANT: Generate the ENTIRE workspace content in markdown format, structured to support YOUR cognitive processes.
 
@@ -204,7 +192,6 @@ Generate the FULL, COMPLETE workspace content now, incorporating all sections an
     update_prompt = update_prompt_template.render(
       content=request.content,
       current_workspace=request.current_workspace,
-      retrieved_context=request.retrieved_context,
     )
 
     return await self.generate_response(

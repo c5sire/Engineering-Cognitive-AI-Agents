@@ -53,6 +53,69 @@ Books that teach cognitive AI should operate like the systems they describe: **d
 ### 4. **Style Over Substance**:
 
 - Do not sacrifice clarity or functionality for flowery language, aesthetic diagrams, or redundant code samples.
+- Avoid overused, cliched words and phrases like:
+
+1. **Overused Descriptive Words**:
+
+   - Delve
+   - Crucial
+   - Journey
+   - Robust
+   - Leverage
+   - Synergy
+   - Innovative (unless genuinely groundbreaking)
+   - Scalable
+   - Seamless (especially in tech contexts)
+   - Groundbreaking
+   - Comprehensive
+
+2. **Vague or Hyperbolic Phrases**:
+
+   - State-of-the-art
+   - Paradigm shift
+   - Cutting-edge
+   - Game-changer
+   - Best practices (unless you clarify which practices you mean)
+   - Tried and true
+   - At the end of the day
+
+3. **Unnecessary Idioms or Metaphors**:
+
+   - Thinking outside the box
+   - Move the needle
+   - Wearing many hats
+   - Hitting the nail on the head
+   - All hands on deck
+   - Leveling the playing field
+
+4. **Buzzwords**:
+
+   - Disruptive
+   - Ecosystem (especially when referring to things like digital products)
+   - Bandwidth (as in capacity to handle tasks)
+   - Value proposition
+   - Customer-centric
+   - Data-driven (unless specifics are given)
+   - Agile (used indiscriminately)
+   - Turnkey solutions
+   - Low-hanging fruit
+
+5. **Fluffy Connectives**:
+
+   - Needless to say
+   - Without further ado
+   - In a nutshell
+   - With that being said
+   - It goes without saying
+
+6. **Motivational or Generic Intentions**:
+   - Passion for excellence
+   - Take a deep dive
+   - Pushing the envelope
+   - Striving for perfection
+   - Think big, act fast
+
+By replacing these expressions with more specific, accurate, or concise language, you'll improve clarity and avoid diluting your message. Let me know if you'd like examples of better alternatives for a particular phrase!
 
 ---
 
@@ -70,7 +133,7 @@ Each chapter must function as a **step in the reader’s journey.** It introduce
 
 - **System-Level Concepts**: Clearly explain the architectural foundations and structural abstractions.
   - Discuss **alternative approaches** and justify the selected solution using reasoned arguments.
-  - Use diagrams and conceptual frameworks sparingly, only when they clarify complex relationships.
+  - Use Mermaid diagrams and conceptual frameworks sparingly, only when they clarify complex relationships.
 - **Relationships Between Components**: Show how individual pieces interact as part of the full system.
 
 ### **3. Implementation Sections**:
@@ -134,5 +197,7 @@ Examples are one of the most powerful ways to bridge abstract ideas and direct a
 Cognitive AI is complex, but your book must not be. **Expose the scaffolding of ideas so readers can see the structure.** Each chapter, section, and diagram should teach cleanly, directly, and without confusing ornamentation. Clarity beats complexity. Functionality beats style.
 
 Readers should finish the book feeling both informed and empowered—ready not just to replicate your examples but to design, build, and innovate their own cognitive AI systems independently.
+
+**AVOID USING LISTS**: you are writing a book, not a checklist. People want to read prose, not endless lists and bullet points. **AVOID USING LISTS**
 
 **Make the book raw, functional, and purpose-driven. Make it brutalist.**

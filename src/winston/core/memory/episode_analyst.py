@@ -10,8 +10,6 @@ from winston.core.paths import AgentPaths
 from winston.core.system import AgentSystem
 from winston.core.tools import Tool
 
-"""Episode analysis specialist agent."""
-
 
 class EpisodeBoundaryResponse(BaseModel):
   """Response from episode boundary detection."""

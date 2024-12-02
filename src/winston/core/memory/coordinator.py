@@ -39,6 +39,7 @@ class MemoryCoordinator(BaseAgent):
       system,
       AgentConfig.from_yaml(
         paths.system_agents_config
+        / "memory"
         / "episode_analyst.yaml"
       ),
       paths,
@@ -48,7 +49,9 @@ class MemoryCoordinator(BaseAgent):
       system,
       AgentConfig.from_yaml(
         paths.system_agents_config
-        / "semantic_memory.yaml"
+        / "memory"
+        / "semantic"
+        / "coordinator.yaml"
       ),
       paths,
     )
@@ -57,6 +60,7 @@ class MemoryCoordinator(BaseAgent):
       system,
       AgentConfig.from_yaml(
         paths.system_agents_config
+        / "memory"
         / "working_memory.yaml"
       ),
       paths,
@@ -99,21 +103,13 @@ class MemoryCoordinator(BaseAgent):
     )
 
     # Combine episode analysis metadata with message metadata
-    logger.trace(
-      f"Original message metadata: {message.metadata}"
-    )
-    logger.trace(
-      f"Episode analysis metadata: {episode_analysis['metadata']}"
-    )
     message.metadata.update(
-      episode_analysis["metadata"]
-    )
-    logger.trace(
-      f"Combined metadata: {message.metadata}"
+      episode_analysis.get("metadata", {})
     )
 
     # Let semantic memory specialist handle knowledge operations
     semantic_results = {}
+    semantic_content = []
     async for response in self.semantic_memory.process(
       message
     ):
@@ -124,14 +120,37 @@ class MemoryCoordinator(BaseAgent):
       )
       semantic_results = json.loads(response.content)
 
+      # Format the main result
+      if semantic_results.get("content"):
+        main_result = (
+          f"{semantic_results['content']}"
+          f" (Relevance: {semantic_results.get('relevance', 'N/A')})"
+        )
+        semantic_content.append(main_result)
+
+      # Format lower relevance results
+      for result in semantic_results.get(
+        "lower_relevance_results", []
+      ):
+        lower_result = (
+          f"{result['content']}"
+          f" (Relevance: {result.get('relevance', 'N/A')})"
+        )
+        semantic_content.append(lower_result)
+
+    # Join all results with newlines
+    combined_semantic_results = "\n".join(
+      semantic_content
+    )
     logger.info(
-      f"Semantic results obtained: {semantic_results}"
+      f"Semantic results formatted: {combined_semantic_results}"
     )
 
-    # Combine semantic results metadata with message metadata
-    message.metadata.update(
-      semantic_results.get("metadata", {})
-    )
+    # Update message metadata with semantic results metadata
+    if isinstance(semantic_results, dict):
+      message.metadata.update(
+        semantic_results.get("metadata", {})
+      )
 
     workspace_manager = WorkspaceManager()
     working_memory_results = {}
