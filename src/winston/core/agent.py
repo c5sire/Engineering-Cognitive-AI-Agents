@@ -181,7 +181,6 @@ class BaseAgent(Agent):
         tools=tools if tools else None,
         timeout=self.config.timeout,
       )
-
       if self.config.stream:
         async for (
           chunk
@@ -325,6 +324,9 @@ class BaseAgent(Agent):
         )
 
     if accumulated_content:
+      logger.debug(
+        f"Accumulated content: {accumulated_content}"
+      )
       self.state.last_response = accumulated_content
 
   async def _process_single_response(

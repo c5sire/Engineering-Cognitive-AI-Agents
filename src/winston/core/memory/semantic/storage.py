@@ -1,6 +1,7 @@
 """Storage specialist for semantic memory."""
 
 import json
+from enum import StrEnum, auto
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -17,24 +18,83 @@ from winston.core.system import AgentSystem
 from winston.core.tools import Tool
 
 
-class StoreKnowledgeRequest(BaseModel):
-  """Parameters for knowledge storage."""
+class KnowledgeActionType(StrEnum):
+  """Types of knowledge storage actions."""
 
-  content: str = Field(
-    description="The core information to store"
-  )
-  semantic_metadata: str = Field(
-    description="JSON-encoded list of key/value pairs for embedding metadata"
-  )
+  NO_STORAGE_NEEDED = auto()
+  CREATED = auto()
+  TEMPORAL_CHANGE = auto()
+  CORRECTION = auto()
+  CONFLICT_RESOLUTION = auto()
 
 
 class StoreKnowledgeResponse(BaseModel):
-  """Result of knowledge storage operation."""
+  """Result of knowledge storage/update operation."""
 
-  id: str = Field(description="ID of stored knowledge")
-  content: str = Field(description="Stored content")
-  metadata: dict[str, str] = Field(
-    description="Associated metadata"
+  id: str | None = Field(
+    default=None,
+    description="ID of stored/updated knowledge",
+  )
+  content: str | None = Field(
+    default=None, description="The knowledge content"
+  )
+  metadata: dict[str, str] | None = Field(
+    default=None, description="Associated metadata"
+  )
+  action: KnowledgeActionType = Field(
+    description="Type of action taken"
+  )
+  reason: str = Field(
+    description="Explanation for the action taken"
+  )
+
+
+class NoStorageNeededRequest(BaseModel):
+  """Request to indicate no storage is needed."""
+
+  reason: str = Field(
+    description="Explanation for why no storage is needed"
+  )
+
+
+class StoreKnowledgeRequest(BaseModel):
+  """Parameters for storing new knowledge."""
+
+  content: str = Field(description="Content to store")
+  semantic_metadata: str = Field(
+    description="JSON-encoded dictionary of key:value pairs for filtering"
+  )
+  action: KnowledgeActionType = Field(
+    default=KnowledgeActionType.CREATED,
+    description="Type of storage action",
+  )
+  reason: str = Field(
+    description="Explanation for why this needs to be stored"
+  )
+
+
+class UpdateKnowledgeRequest(BaseModel):
+  """Parameters for updating existing knowledge."""
+
+  knowledge_id: str = Field(
+    description="ID of knowledge to update"
+  )
+  new_content: str = Field(
+    description="Updated content"
+  )
+  semantic_metadata: str = Field(
+    description="JSON-encoded list of key/value pairs for filtering"
+  )
+  preserve_history: bool = Field(
+    description="Whether to preserve old version"
+  )
+  action: KnowledgeActionType = Field(
+    description="Type of update being performed",
+    # Must be one of the update types:
+    # TEMPORAL_CHANGE, CORRECTION, CONFLICT_RESOLUTION
+  )
+  reason: str = Field(
+    description="Explanation for why this update is needed"
   )
 
 
@@ -62,23 +122,51 @@ class StorageSpecialist(BaseAgent):
       f"Storage path: {storage_path}, Embedding path: {embedding_path}"
     )
 
-    # Register storage tool
-    self.system.register_tool(
+    storage_tools = [
+      Tool(
+        name="no_storage_needed",
+        description="Use this tool when there is no need to store new knowledge",
+        handler=self._handle_no_storage_needed,
+        input_model=NoStorageNeededRequest,
+        output_model=StoreKnowledgeResponse,
+      ),
       Tool(
         name="store_knowledge",
-        description="Store important information in long-term memory",
+        description="Store new knowledge with metadata",
         handler=self._handle_store_knowledge,
         input_model=StoreKnowledgeRequest,
         output_model=StoreKnowledgeResponse,
-      )
-    )
-    logger.debug("Registered store_knowledge tool.")
+      ),
+      Tool(
+        name="update_knowledge",
+        description="Update existing knowledge",
+        handler=self._handle_update_knowledge,
+        input_model=UpdateKnowledgeRequest,
+        output_model=StoreKnowledgeResponse,  # Same response model for both
+      ),
+    ]
+    for tool in storage_tools:
+      self.system.register_tool(tool)
+      logger.debug(f"Registered {tool.name} tool.")
 
     # Grant self access
     self.system.grant_tool_access(
-      self.id, ["store_knowledge"]
+      self.id, [x.name for x in storage_tools]
     )
     logger.debug("Granted tool access to self.")
+
+  async def _handle_no_storage_needed(
+    self,
+    request: NoStorageNeededRequest,
+  ) -> StoreKnowledgeResponse:
+    """Handle no storage needed requests."""
+    logger.debug(
+      f"Handling no storage needed request: {request}"
+    )
+    return StoreKnowledgeResponse(
+      action=KnowledgeActionType.NO_STORAGE_NEEDED,
+      reason=request.reason,
+    )
 
   async def _handle_store_knowledge(
     self,
@@ -94,19 +182,15 @@ class StorageSpecialist(BaseAgent):
       logger.debug(
         f"Deserialized metadata: {metadata}"
       )
-
-      # Convert list of k/v pairs to dict
-      metadata_dict = {
-        item["key"]: item["value"] for item in metadata
-      }
-      logger.debug(
-        f"Converted metadata to dict: {metadata_dict}"
-      )
+      if not isinstance(metadata, dict):
+        raise ValueError(
+          "Expected metadata to be a dictionary."
+        )
 
       # Store in knowledge base
       knowledge_id = await self._storage.store(
         content=request.content,
-        context=metadata_dict,
+        context=metadata,
       )
       logger.debug(
         f"Stored knowledge with ID: {knowledge_id}"
@@ -127,8 +211,68 @@ class StorageSpecialist(BaseAgent):
       return StoreKnowledgeResponse(
         id=knowledge_id,
         content=request.content,
-        metadata=metadata_dict,
+        metadata=metadata,
+        action=request.action,
+        reason=request.reason,
       )
     except Exception as e:
       logger.error(f"Storage error: {e}")
+      raise
+
+  async def _handle_update_knowledge(
+    self,
+    request: UpdateKnowledgeRequest,
+  ) -> StoreKnowledgeResponse:
+    """Handle knowledge update requests."""
+    logger.debug(
+      f"Handling update knowledge request: {request}"
+    )
+    try:
+      if request.preserve_history:
+        # Load and archive existing version
+        existing = await self._storage.load(
+          request.knowledge_id
+        )
+        archived_id = await self._storage.store(
+          content=existing.content,
+          context={
+            **existing.context,
+            "archived": "true",
+          },
+        )
+        logger.debug(
+          f"Archived existing version as: {archived_id}"
+        )
+
+      # Deserialize metadata
+      metadata = json.loads(request.semantic_metadata)
+      logger.debug(
+        f"Deserialized metadata: {metadata}"
+      )
+      if not isinstance(metadata, dict):
+        raise ValueError(
+          "Expected metadata to be a dictionary."
+        )
+
+      # Update the knowledge
+      updated = await self._storage.update(
+        request.knowledge_id,
+        content=request.new_content,
+        context=metadata,
+      )
+      logger.debug(f"Updated knowledge: {updated}")
+
+      # Update embedding
+      await self._embeddings.update_embedding(updated)
+      logger.debug("Updated embedding")
+
+      return StoreKnowledgeResponse(
+        id=request.knowledge_id,
+        content=request.new_content,
+        metadata=metadata,
+        action=request.action,
+        reason=request.reason,
+      )
+    except Exception as e:
+      logger.error(f"Update error: {e}")
       raise
