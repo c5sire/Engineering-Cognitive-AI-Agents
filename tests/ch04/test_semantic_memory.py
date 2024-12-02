@@ -1,4 +1,4 @@
-"""Test semantic memory specialist functionality."""
+"""Test semantic memory coordinator functionality."""
 
 import json
 import tempfile
@@ -8,22 +8,17 @@ import pytest
 from loguru import logger
 
 from winston.core.agent import AgentConfig
-from winston.core.memory.semantic_memory import (
-  SemanticMemorySpecialist,
+from winston.core.memory.semantic.coordinator import (
+  SemanticMemoryCoordinator,
 )
 from winston.core.messages import Message
 from winston.core.paths import AgentPaths
 from winston.core.system import AgentSystem
 
 
-@pytest.mark.asyncio
-async def test_semantic_memory_operations():
-  """Test semantic memory storage and retrieval."""
-  logger.info(
-    "Starting test_semantic_memory_operations"
-  )
-
-  # Setup
+@pytest.fixture
+def paths():
+  """Create temporary paths for testing."""
   with tempfile.TemporaryDirectory() as temp_dir:
     temp_root = Path(temp_dir)
     project_root = Path(__file__).parent.parent.parent
@@ -31,174 +26,258 @@ async def test_semantic_memory_operations():
       root=temp_root,
       system_root=project_root,
     )
+    yield paths
 
-    system = AgentSystem()
-    config = AgentConfig.from_yaml(
-      paths.system_agents_config
-      / "semantic_memory.yaml"
-    )
-    specialist = SemanticMemorySpecialist(
-      system, config, paths
-    )
 
-    # Test 1: Store Initial Knowledge
-    store_msg = Message(
-      content="I usually drink coffee in the morning, like my father used to",
-      metadata={
-        "type": "conversation",
-        "relevance_query": "beverage preferences and routines",
-      },
-    )
-    logger.info("Test 1: Storing initial knowledge")
+@pytest.mark.asyncio
+async def test_semantic_memory_operations(paths):
+  """Test complete semantic memory flow through coordinator."""
+  logger.info(
+    "Starting semantic memory coordinator test"
+  )
 
-    storage_response = {}
-    async for response in specialist.process(
-      store_msg
-    ):
-      if response.metadata.get("streaming"):
-        continue
-      storage_response = json.loads(response.content)
+  # Initialize system and coordinator
+  system = AgentSystem()
+  config = AgentConfig.from_yaml(
+    paths.system_agents_config
+    / "memory"
+    / "semantic"
+    / "coordinator.yaml"
+  )
+  coordinator = SemanticMemoryCoordinator(
+    system, config, paths
+  )
 
-    logger.debug(
-      f"Storage response received: {storage_response}"
-    )
+  # Test Cases:
 
-    # Validate storage response structure
-    assert "content" in storage_response
-    assert "metadata" in storage_response
-    assert "id" in storage_response["metadata"]
+  # 1. New Information (Nothing Found)
+  logger.info("Test Case 1: New Information")
+  new_info_msg = Message(
+    content="I usually drink coffee in the morning, like my father used to",
+    metadata={"type": "observation"},
+  )
 
-    # Store ID for later retrieval
-    knowledge_id = storage_response["metadata"]["id"]
+  # Collect results by type
+  retrieval_results = []
+  storage_results = []
+  async for response in coordinator.process(
+    new_info_msg
+  ):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        storage_results.append(result)
 
-    # Validate content reflects input
-    assert (
-      "coffee" in storage_response["content"].lower()
-    )
-    assert (
-      "morning" in storage_response["content"].lower()
-    )
+  # Now we can verify each type of operation
+  assert (
+    len(retrieval_results) > 0
+  )  # Verify retrieval happened
+  assert (
+    retrieval_results[0]["content"] is None
+  )  # Should be empty for new info
 
-    # Validate metadata includes context
-    assert storage_response["metadata"]["context"]
-    assert storage_response["metadata"]["importance"]
+  assert (
+    len(storage_results) > 0
+  )  # Verify storage happened
+  stored_result = storage_results[0]
+  assert (
+    "coffee" in stored_result["content"].lower()
+  )  # Verify content was stored
 
-    # Test 2: Retrieve Knowledge
-    retrieve_msg = Message(
-      content="What do I usually drink in the morning?",
-      metadata={
-        "type": "conversation",
-        "relevance_query": "morning beverage preferences",
-      },
-    )
-    logger.info("Test 2: Retrieving knowledge")
+  # 2. Update Existing (Exact Match)
+  logger.info("Test Case 2: Update Existing")
+  update_msg = Message(
+    content="Actually, I've switched to tea",
+    metadata={"type": "observation"},
+  )
 
-    retrieval_response = {}
-    async for response in specialist.process(
-      retrieve_msg
-    ):
-      if response.metadata.get("streaming"):
-        continue
-      retrieval_response = json.loads(response.content)
+  # Collect results by type
+  retrieval_results = []
+  update_results = []
+  async for response in coordinator.process(
+    update_msg
+  ):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        update_results.append(result)
 
-    logger.debug(
-      f"Retrieval response received: {retrieval_response}"
-    )
+  # Verify update handling
+  assert len(update_results) > 0
+  update_result = update_results[0]
+  assert "tea" in update_result["content"].lower()
 
-    # Validate retrieval response
-    assert "content" in retrieval_response
-    assert retrieval_response["relevance"] is not None
-    assert (
-      retrieval_response["metadata"]["id"]
-      == knowledge_id
-    )
+  # 3. Related Information
+  logger.info("Test Case 3: Related Information")
+  related_msg = Message(
+    content="I enjoy green tea after meals",
+    metadata={"type": "observation"},
+  )
 
-    # Validate lower relevance results
-    assert (
-      "lower_relevance_results" in retrieval_response
-    )
-    for item in retrieval_response[
-      "lower_relevance_results"
-    ]:
-      assert "content" in item
-      assert "metadata" in item
+  # Collect results by type
+  retrieval_results = []
+  related_results = []
+  async for response in coordinator.process(
+    related_msg
+  ):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        related_results.append(result)
 
-    # Test 3: Update Knowledge
-    update_msg = Message(
-      content="Actually, I've switched to tea",
-      metadata={
-        "type": "conversation",
-        "relevance_query": "beverage preference update",
-      },
-    )
-    logger.info("Test 3: Updating knowledge")
+  # Verify handling of related information
+  assert len(related_results) > 0
+  related_result = related_results[0]
+  assert (
+    "green tea" in related_result["content"].lower()
+  )
+  assert (
+    "after meals" in related_result["content"].lower()
+  )
 
-    update_response = {}
-    async for response in specialist.process(
-      update_msg
-    ):
-      if response.metadata.get("streaming"):
-        continue
-      update_response = json.loads(response.content)
+  # 4. Command (Should Not Store)
+  logger.info("Test Case 4: Command")
+  command_msg = Message(
+    content="Open the bag of chips",
+    metadata={"type": "command"},
+  )
 
-    logger.debug(
-      f"Update response received: {update_response}"
-    )
+  # Collect results by type
+  retrieval_results = []
+  command_results = []
+  async for response in coordinator.process(
+    command_msg
+  ):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        command_results.append(result)
 
-    # Validate update response
-    assert "content" in update_response
-    assert "metadata" in update_response
-    assert (
-      update_response["metadata"]["id"] != knowledge_id
-    )  # Should be new entry
-    assert "tea" in update_response["content"].lower()
+  # Verify command is not stored
+  assert len(command_results) > 0
+  command_result = command_results[0]
+  assert (
+    command_result["action"] == "no_storage_needed"
+  )
 
-    # Test 4: Retrieve Updated Knowledge
-    final_msg = Message(
-      content="Tell me about my beverage preferences over time",
-      metadata={
-        "type": "conversation",
-        "relevance_query": "beverage preference history",
-      },
-    )
-    logger.info("Test 4: Retrieving updated knowledge")
+  # 5. Question (Context Retrieval)
+  logger.info("Test Case 5: Question")
+  question_msg = Message(
+    content="What do I usually drink?",
+    metadata={"type": "question"},
+  )
 
-    final_response = None
-    async for response in specialist.process(
-      final_msg
-    ):
-      if response.metadata.get("streaming"):
-        continue
-      final_response = json.loads(response.content)
+  # Collect results by type
+  retrieval_results = []
+  question_results = []
+  async for response in coordinator.process(
+    question_msg
+  ):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        question_results.append(result)
 
-    logger.debug(
-      f"Final response received: {final_response}"
-    )
+  # Verify context retrieval
+  assert len(question_results) > 0
+  question_result = question_results[0]
+  assert (
+    "tea" in question_result["content"].lower()
+  )  # Should find latest preference
+  assert (
+    question_result["relevance"] > 0.5
+  )  # High relevance match
 
-    # Should find both old and new preferences
-    assert final_response is not None
-    assert "content" in final_response
-    assert "metadata" in final_response
-    assert "lower_relevance_results" in final_response
+  # 6. Autonomous Observation
+  logger.info("Test Case 6: Autonomous Observation")
+  auto_msg = Message(
+    content="Research indicates green tea has health benefits",
+    metadata={
+      "type": "research_finding",
+      "source": "autonomous_research",
+    },
+  )
 
-    found_coffee = any(
-      "coffee" in item["content"].lower()
-      for item in final_response[
-        "lower_relevance_results"
-      ]
-    )
-    found_tea = any(
-      "tea" in item["content"].lower()
-      for item in final_response[
-        "lower_relevance_results"
-      ]
-    )
+  # Collect results by type
+  retrieval_results = []
+  auto_results = []
+  async for response in coordinator.process(auto_msg):
+    if not response.metadata.get("streaming"):
+      result = json.loads(response.content)
+      if (
+        response.metadata.get("type")
+        == "retrieved_context"
+      ):
+        logger.debug(f"Retrieval result: {result}")
+        retrieval_results.append(result)
+      elif (
+        response.metadata.get("type")
+        == "storage_result"
+      ):
+        logger.debug(f"Storage result: {result}")
+        auto_results.append(result)
 
-    assert (
-      found_coffee
-      or "coffee" in final_response["content"].lower()
-    )
-    assert (
-      found_tea
-      or "tea" in final_response["content"].lower()
-    )
+  # Verify research storage
+  assert len(auto_results) > 0
+  auto_result = auto_results[0]
+  assert (
+    "health benefits" in auto_result["content"].lower()
+  )
+  assert (
+    auto_result["metadata"].get("source")
+    == "autonomous_research"
+  )
+
+  logger.info(
+    "Completed semantic memory coordinator test"
+  )

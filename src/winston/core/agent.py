@@ -251,6 +251,14 @@ class BaseAgent(Agent):
       # Handle tool calls completion
       if (
         hasattr(choices, "finish_reason")
+        and choices["finish_reason"] == "stop"
+        and not tool_calls
+      ):
+        logger.debug(
+          "Stream completed with no tool calls present"
+        )
+      elif (
+        hasattr(choices, "finish_reason")
         and choices["finish_reason"] == "tool_calls"
         and tool_calls
       ):
@@ -340,7 +348,12 @@ class BaseAgent(Agent):
     if not message:
       raise ValueError("No message in response")
 
-    if (
+    if not (
+      hasattr(message, "tool_calls")
+      and message.tool_calls
+    ):
+      logger.debug("No tool calls present in response")
+    elif (
       hasattr(message, "tool_calls")
       and message.tool_calls
     ):
