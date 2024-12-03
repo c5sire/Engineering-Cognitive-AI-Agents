@@ -1,4 +1,150 @@
-"""Storage specialist for semantic memory."""
+"""Storage Specialist: Expert agent for knowledge integration and conflict resolution.
+
+The Storage Specialist makes sophisticated decisions about if and how to store new
+information, handling everything from simple facts to complex knowledge updates.
+Unlike basic storage systems, this specialist reasons about temporal changes,
+resolves conflicts, and maintains knowledge coherence.
+
+Architecture Overview:
+```mermaid
+graph TD
+    SS[Storage Specialist]
+
+    subgraph "Analysis Phase"
+        EA[Evaluate Action]
+        subgraph "Action Types"
+            NS[No Storage Needed]
+            NC[New Creation]
+            TC[Temporal Change]
+            CR[Correction]
+            CF[Conflict Resolution]
+        end
+    end
+
+    subgraph "Storage Phase"
+        KS[Knowledge Store]
+        ES[Embedding Store]
+        MD[Metadata/Context]
+        HT[History Tracking]
+    end
+
+    SS -->|Analyzes| EA
+    EA -->|Determines| NS
+    EA -->|Determines| NC
+    EA -->|Determines| TC
+    EA -->|Determines| CR
+    EA -->|Determines| CF
+
+    NC -->|New Entry| KS
+    TC -->|Version History| HT
+    CR -->|Update + Rationale| KS
+    CF -->|Resolution + Context| KS
+
+    KS --> ES
+    KS --> MD
+```
+
+Design Philosophy:
+The storage specialist implements sophisticated knowledge management through
+careful analysis of information types and relationships:
+
+1. Storage Decisions
+   - Commands rarely need storage
+   - Questions inform context but aren't stored
+   - Facts and preferences typically stored
+   - Observations may need compression
+   - System actions usually skipped
+
+2. Temporal Management
+   When handling "I've switched to tea":
+   - Preserves coffee preference history
+   - Records temporal progression
+   - Maintains morning routine context
+   - Notes preference evolution
+
+3. Conflict Resolution
+   For contradictory information:
+   - Evaluates source reliability
+   - Considers temporal sequence
+   - Preserves conflicting versions
+   - Documents resolution rationale
+
+4. Context Preservation
+   - Maintains semantic connections
+   - Tracks relationship context
+   - Preserves temporal markers
+   - Records decision metadata
+
+Example Scenarios:
+
+1. No Storage Needed:
+   Input: "Open the window"
+   Analysis:
+   - Command, not knowledge
+   - No persistent value
+   - Action only
+   Result: NO_STORAGE_NEEDED
+
+2. Temporal Change:
+   Input: "I've switched to tea"
+   Analysis:
+   - Existing preference found
+   - Temporal progression
+   - Context preservation needed
+   Result: TEMPORAL_CHANGE
+   Actions:
+   - Archive coffee preference
+   - Store new preference
+   - Maintain context
+   - Update embeddings
+
+3. Conflict Resolution:
+   Input: "Actually, I still drink coffee sometimes"
+   Analysis:
+   - Partial contradiction
+   - Pattern refinement
+   - Temporal aspects
+   Result: CONFLICT_RESOLUTION
+   Actions:
+   - Update recent change
+   - Note pattern complexity
+   - Preserve history
+   - Clarify conditions
+
+4. Correction:
+   Input: "No, I meant green tea, not black tea"
+   Analysis:
+   - Direct correction
+   - Same temporal context
+   - Specific detail update
+   Result: CORRECTION
+   Actions:
+   - Update specific detail
+   - Maintain other context
+   - Note correction
+   - No history needed
+
+Key Design Decisions:
+- Rich action type enumeration
+- Careful history preservation
+- Context-aware updates
+- Clear update rationales
+- Flexible metadata tracking
+
+The specialist's system prompt guides the LLM to:
+1. Analyze information type
+2. Check existing knowledge
+3. Determine appropriate action
+4. Explain storage decisions
+5. Maintain knowledge coherence
+
+This design enables sophisticated knowledge management while maintaining:
+- Clear decision patterns
+- Robust conflict handling
+- Rich temporal tracking
+- Context preservation
+- Knowledge coherence
+"""
 
 import json
 from enum import StrEnum, auto

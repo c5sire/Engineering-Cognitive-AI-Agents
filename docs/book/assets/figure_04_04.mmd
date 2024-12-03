@@ -1,0 +1,29 @@
+---
+config:
+  layout: elk
+---
+graph TD
+    E[Experience] --> EA[Episode Analysis]
+    EA --> B[Boundary Detection]
+    EA --> C[Context Evaluation]
+
+    E --> IC[Information Compression]
+    IC --> KE[Key Elements]
+    IC --> PR[Pattern Recognition]
+
+    KE --> SM[Semantic Memory]
+    PR --> SM
+
+    C --> WM[Working Memory Update]
+
+    subgraph "Immediate Processing"
+        EA
+        B
+        C
+    end
+
+    subgraph "Knowledge Extraction"
+        IC
+        KE
+        PR
+    end

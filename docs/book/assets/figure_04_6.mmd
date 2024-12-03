@@ -1,0 +1,17 @@
+---
+config:
+---
+sequenceDiagram
+    participant User
+    participant MC as Memory Coordinator
+    participant EA as Episode Analyst
+    participant SM as Semantic Memory
+    participant WM as Working Memory
+
+    User->>MC: "Switched to tea"
+    MC->>EA: Analyze context shift
+    EA-->>MC: Same episode, preference update
+    MC->>SM: Find related knowledge
+    SM-->>MC: Previous coffee preference
+    MC->>SM: Store updated preference
+    MC->>WM: Update cognitive context

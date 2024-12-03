@@ -1,4 +1,106 @@
-"""Retrieval specialist for semantic memory."""
+"""Retrieval Specialist: Expert agent for semantic knowledge query formulation.
+
+The Retrieval Specialist transforms information needs into effective semantic queries,
+finding relevant knowledge through meaning rather than exact matches. This specialist
+focuses purely on the cognitive aspects of retrieval - analyzing content to identify
+key concepts and relationships that will surface relevant knowledge.
+
+Architecture Overview:
+```mermaid
+graph TD
+    RS[Retrieval Specialist]
+
+    subgraph "Query Analysis"
+        QF[Query Formulation]
+        ST[Search Terms]
+        RC[Related Concepts]
+    end
+
+    subgraph "Search Execution"
+        ES[Embedding Search]
+        MF[Metadata Filtering]
+        RR[Result Ranking]
+    end
+
+    RS -->|Analyzes| QF
+    QF -->|Identifies| ST
+    QF -->|Expands to| RC
+
+    ST --> ES
+    RC --> ES
+    ES -->|Optional| MF
+    ES --> RR
+
+    RR -->|Ranked Results| RS
+```
+
+Design Philosophy:
+The retrieval specialist embodies several key principles of cognitive search:
+
+1. Semantic Understanding
+   - Identifies core concepts in queries
+   - Expands to related terms and ideas
+   - Considers multiple phrasings
+   - Maintains query intent
+
+2. Relevance Assessment
+   - Primary: Semantic similarity
+   - Secondary: Metadata matching
+   - Considers context importance
+   - Ranks multiple relevance levels
+
+3. Result Organization
+   - Best match first
+   - Related matches ranked
+   - Relevance scores included
+   - Context preserved
+
+Example Flows:
+
+1. Direct Query:
+   Input: "What do I drink in the morning?"
+   Analysis:
+   - Core concepts: beverage, morning routine
+   - Related terms: breakfast, preferences
+   - Temporal context: morning, daily habits
+
+2. Contextual Query:
+   Input: "Would that work with my schedule?"
+   Analysis:
+   - Reference resolution needed
+   - Time management context
+   - Pattern matching required
+   - Preference consideration
+
+3. Implicit Query:
+   Input: "I'm thinking of changing my routine"
+   Analysis:
+   - Current routine retrieval
+   - Pattern identification
+   - Historical changes
+   - Related preferences
+
+Key Design Decisions:
+- Focus on query formulation over execution
+- Semantic matching prioritized over filters
+- Multiple relevance levels returned
+- Context preserved in results
+- Clear relevance explanations
+
+The specialist's system prompt guides the LLM to:
+1. Analyze the retrieval need
+2. Identify key concepts and relationships
+3. Consider alternative phrasings
+4. Formulate effective queries
+5. Explain retrieval strategy
+
+This design enables sophisticated information retrieval while maintaining:
+- Clean separation of concerns (cognitive vs mechanical)
+- Focus on semantic understanding
+- Natural query expansion
+- Clear relevance assessment
+
+"""
 
 from typing import Any
 

@@ -1,14 +1,11 @@
-sequenceDiagram
-    participant U as User
-    participant MC as Memory Coordinator
-    participant Z as Zettelkasten
-    participant H as Human Learning
-    participant W as Workspace
-
-    U->>MC: Provides feedback
-    Note over MC: Evaluates as feedback
-    MC->>H: Process feedback
-    H->>MC: Returns processed feedback
-    MC->>Z: Update knowledge
-    Z->>MC: Knowledge updated
-    MC->>W: Update workspace
+---
+config:
+  layout: elk
+---
+flowchart TD
+    STM["Short-term Memory"] --> WS["Workspace System"] & CH["Conversation History"]
+    WS --> PW["Private Workspaces<br>Agent-specific context"] & SW["Shared Workspaces<br>Multi-agent coordination"]
+    CH --> RT["Runtime History<br>Session context"] & PS["Long-term Memory"]
+    PW <-- Coordinates --> PS
+    SW <-- Coordinates --> PS
+    style PW stroke-dasharray: 5

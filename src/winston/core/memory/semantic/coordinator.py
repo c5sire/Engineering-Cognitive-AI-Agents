@@ -1,4 +1,80 @@
-"""Semantic memory agency implementation."""
+"""Semantic Memory Coordinator: Manages long-term knowledge storage and retrieval.
+
+The Semantic Memory Coordinator orchestrates the storage, retrieval, and maintenance
+of Winston's long-term knowledge. Rather than using explicit relationship graphs,
+this system achieves connected knowledge through semantic embeddings - allowing
+natural associations to emerge through meaning rather than rigid structure.
+
+Architecture Overview:
+```mermaid
+graph TD
+    SMC[Semantic Memory Coordinator] -->|Query| RS[Retrieval Specialist]
+    SMC -->|Store/Update| SS[Storage Specialist]
+
+    RS -->|Search| ES[Embedding Store]
+    RS -->|Load| KS[Knowledge Store]
+
+    SS -->|Check Existing| ES
+    SS -->|Store New| KS
+    SS -->|Update| ES
+
+    subgraph "Storage Components"
+        ES[Embedding Store<br/>ChromaDB]
+        KS[Knowledge Store<br/>File-based]
+    end
+
+    RS -->|"Relevant Knowledge"| SMC
+    SS -->|"Storage Results"| SMC
+```
+
+Design Philosophy:
+The semantic memory system addresses several key challenges in cognitive architectures:
+
+1. Knowledge Connections
+   - Uses embedding space for natural semantic relationships
+   - Avoids complexity of explicit graph management
+   - Enables fuzzy matching and graceful degradation
+   - Mirrors human associative memory patterns
+
+2. Knowledge Evolution
+   - Handles updates while preserving connections
+   - Maintains temporal progression of understanding
+   - Resolves conflicts between old and new information
+   - Tracks context and metadata for knowledge pieces
+
+3. Retrieval Patterns
+   - Finds both exact and semantically related matches
+   - Uses metadata for filtering when needed
+   - Ranks results by semantic relevance
+   - Returns multiple relevance levels for context
+
+Example Flow:
+When processing "I've switched to tea", the system:
+1. Retrieval Specialist finds existing beverage preferences
+2. Storage Specialist identifies this as a temporal change
+3. Updates knowledge while preserving morning routine context
+4. Maintains semantic connections to family patterns
+5. Records change metadata for future reference
+
+Key Design Decisions:
+- Focus on semantic similarity over explicit relationships
+- Simple metadata over complex categorization
+- Preserve knowledge history during updates
+- Handle conflicts through specialist reasoning
+- Maintain context through embedding space
+
+Implementation Notes:
+- Uses ChromaDB for embedding storage/search
+- File-based knowledge store for raw content
+- Pydantic models for knowledge structure
+- Async operations throughout
+- Clear separation between storage and retrieval
+
+This design enables sophisticated knowledge management while maintaining
+architectural simplicity. The coordinator ensures proper sequencing of
+operations while letting specialists handle cognitive decisions about
+storage and retrieval.
+"""
 
 from typing import AsyncIterator
 

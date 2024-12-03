@@ -1,4 +1,94 @@
-"""Basic knowledge storage implementation."""
+"""Basic knowledge storage implementation.
+
+Winston's semantic memory system achieves connected knowledge through meaning rather
+than explicit relationships. Using vector embeddings through ChromaDB, knowledge
+naturally clusters by semantic similarity - "morning coffee" associates with both
+"afternoon tea" and "father's habits" through shared meaning rather than explicit
+links.
+
+Architecture Overview:
+```mermaid
+graph TD
+    K[Knowledge Entry] -->|Store| KS[Knowledge Store]
+    K -->|Extract| M[Metadata]
+    K -->|Track| T[Temporal Info]
+
+    subgraph "Knowledge Store"
+        KS -->|JSON| FS[File System]
+        KS -->|Load| KO[Knowledge Objects]
+        KS -->|List| KL[Knowledge List]
+    end
+
+    subgraph "Knowledge Management"
+        C[Create Knowledge]
+        U[Update Knowledge]
+        D[Delete Knowledge]
+        C --> K
+        U --> K
+        D --> K
+    end
+
+    subgraph "Temporal Layer"
+        T -->|Created| CD[Creation Date]
+        T -->|Modified| MD[Modified Date]
+        T -->|History| H[Version History]
+    end
+
+    subgraph "Metadata Layer"
+        M -->|Context| CT[Context Tags]
+        M -->|Type| TY[Knowledge Type]
+        M -->|Custom| CM[Custom Metadata]
+    end
+```
+
+Design Philosophy:
+The storage system provides the foundation for Winston's semantic memory,
+implementing a simple but flexible knowledge persistence layer. Rather than using
+a complex database system, it uses a straightforward file-based approach that:
+
+1. Knowledge Structure
+   - Unique identification for each piece of knowledge
+   - Rich context through flexible metadata
+   - Temporal tracking for knowledge evolution
+   - Simple, human-readable storage format
+
+2. Version Management
+   - Creation and modification timestamps
+   - Optional version history
+   - Change tracking capabilities
+   - Temporal context preservation
+
+3. Flexible Organization
+   - Context-aware storage
+   - Metadata-based organization
+   - Custom classification support
+   - Natural knowledge grouping
+
+Example Flow:
+When Winston learns about a user's preference change:
+1. Creates new knowledge entry with unique ID
+2. Stores content and contextual metadata
+3. Tracks temporal information
+4. Enables future retrieval and updates
+
+Key Architectural Principles:
+- Simple, reliable storage mechanisms
+- Focus on knowledge integrity
+- Clear temporal tracking
+- Flexible metadata support
+- Human-readable formats
+
+Implementation Note:
+While the storage system supports rich metadata and versioning capabilities,
+it maintains simplicity by using basic file system operations and JSON
+serialization. This approach provides reliability and transparency while
+enabling more sophisticated knowledge management through higher-level systems
+like the semantic memory coordinator.
+
+The storage system serves as the foundation for Winston's memory capabilities,
+providing persistent storage that higher-level memory systems can build upon
+while maintaining architectural clarity and operational reliability.
+"""
 
 import json
 import uuid
@@ -156,3 +246,40 @@ class KnowledgeStorage:
       f"Total entries listed: {len(entries)}"
     )
     return entries
+
+  async def delete(self, knowledge_id: str) -> None:
+    """Delete knowledge entry by ID.
+
+    Parameters
+    ----------
+    knowledge_id : str
+        ID of the knowledge entry to delete
+
+    Raises
+    ------
+    FileNotFoundError
+        If knowledge entry doesn't exist
+    """
+    logger.info(
+      f"Deleting knowledge entry with ID: {knowledge_id}"
+    )
+    path = self._get_path(knowledge_id)
+
+    if not path.exists():
+      logger.warning(
+        f"Knowledge {knowledge_id} not found"
+      )
+      raise FileNotFoundError(
+        f"Knowledge {knowledge_id} not found"
+      )
+
+    try:
+      path.unlink()
+      logger.info(
+        f"Knowledge entry deleted successfully: {knowledge_id}"
+      )
+    except Exception as e:
+      logger.error(
+        f"Failed to delete knowledge entry: {e}"
+      )
+      raise

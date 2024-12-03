@@ -1,3 +1,66 @@
+"""Memory Coordinator: Central orchestrator for Winston's cognitive memory system.
+
+The Memory Coordinator implements a Society of Mind approach to memory management,
+coordinating specialized agents that handle different aspects of memory operations.
+Rather than treating memory as simple storage, this system mirrors human cognitive
+processes by maintaining working context while building long-term knowledge.
+
+Architecture Overview:
+```mermaid
+graph TD
+    MC[Memory Coordinator] -->|Request Analysis| EA[Episode Analyst]
+    EA -->|Episode Status| MC
+    MC -->|Request Operations| SMC[Semantic Memory Coordinator]
+    SMC -->|Retrieval| RS[Retrieval Specialist]
+    SMC -->|Storage| SS[Storage Specialist]
+    RS -->|Context| SMC
+    SS -->|Updates| SMC
+    SMC -->|Retrieved Context + New Facts| MC
+    MC -->|Update Request| WMS[Working Memory Specialist]
+    WMS -->|Updated State| MC
+```
+
+Design Philosophy:
+The memory system addresses a fundamental challenge in LLM-based cognitive
+architectures: while language models provide sophisticated reasoning, they cannot
+inherently learn from interactions or maintain context over time. The Memory
+Coordinator bridges this gap by:
+
+1. Managing Working Memory
+   - Maintains immediate cognitive context
+   - Coordinates shared understanding between agents
+   - Preserves relevant context across interactions
+
+2. Building Long-term Knowledge
+   - Detects and processes new information
+   - Maintains semantic connections between facts
+   - Updates existing knowledge when understanding changes
+
+3. Processing Experiences
+   - Identifies cognitive episode boundaries
+   - Extracts key facts and relationships
+   - Compresses experiences into semantic knowledge
+
+Example Flow:
+When Winston learns "I usually drink coffee in the morning, like my father used to",
+the system:
+1. Episode Analyst determines this reveals preferences and relationships
+2. Semantic Memory retrieves any related knowledge about routines/preferences
+3. Storage Specialist captures both the preference and family connection
+4. Working Memory Specialist updates current context while maintaining relationships
+
+Key Architectural Principles:
+- Coordinators handle flow control (pure Python)
+- Specialists make cognitive decisions (LLM-based)
+- Tools execute concrete actions
+- Clear separation of concerns throughout
+
+This design enables Winston to build and maintain a rich web of knowledge while
+keeping each component focused and maintainable. The coordinator ensures these
+pieces work together seamlessly, providing other agents with a simple interface
+to sophisticated memory operations.
+"""
+
 import json
 from typing import AsyncIterator
 
@@ -8,8 +71,8 @@ from winston.core.agent_config import AgentConfig
 from winston.core.memory.episode_analyst import (
   EpisodeAnalyst,
 )
-from winston.core.memory.semantic_memory import (
-  SemanticMemorySpecialist,
+from winston.core.memory.semantic.coordinator import (
+  SemanticMemoryCoordinator,
 )
 from winston.core.memory.working_memory import (
   WorkingMemorySpecialist,
@@ -45,7 +108,7 @@ class MemoryCoordinator(BaseAgent):
       paths,
     )
 
-    self.semantic_memory = SemanticMemorySpecialist(
+    self.semantic_memory = SemanticMemoryCoordinator(
       system,
       AgentConfig.from_yaml(
         paths.system_agents_config
@@ -92,7 +155,13 @@ class MemoryCoordinator(BaseAgent):
     ):
       if response.metadata.get("streaming"):
         continue
-      episode_analysis = json.loads(response.content)
+      try:
+        episode_analysis = json.loads(response.content)
+      except json.JSONDecodeError as e:
+        logger.error(
+          f"Failed to decode episode analysis response: {e}"
+        )
+        raise
 
     logger.info(
       f"Episode analysis completed: {episode_analysis}"
@@ -107,9 +176,10 @@ class MemoryCoordinator(BaseAgent):
       episode_analysis.get("metadata", {})
     )
 
-    # Let semantic memory specialist handle knowledge operations
-    semantic_results = {}
-    semantic_content = []
+    # Let semantic memory coordinator handle knowledge operations
+    # First result will be retrieval, second will be storage
+    retrieval_content = None
+    storage_content = None
     async for response in self.semantic_memory.process(
       message
     ):
@@ -118,40 +188,42 @@ class MemoryCoordinator(BaseAgent):
       logger.trace(
         f"Raw semantic results obtained: {response}"
       )
-      semantic_results = json.loads(response.content)
 
-      # Format the main result
-      if semantic_results.get("content"):
-        main_result = (
-          f"{semantic_results['content']}"
-          f" (Relevance: {semantic_results.get('relevance', 'N/A')})"
+      try:
+        result = json.loads(response.content)
+      except json.JSONDecodeError as e:
+        logger.error(
+          f"Failed to decode semantic memory response: {e}"
         )
-        semantic_content.append(main_result)
+        raise
 
-      # Format lower relevance results
-      for result in semantic_results.get(
-        "lower_relevance_results", []
-      ):
-        lower_result = (
-          f"{result['content']}"
-          f" (Relevance: {result.get('relevance', 'N/A')})"
+      # If this is the first non-streaming response, it's retrieval
+      if retrieval_content is None:
+        retrieval_content = result
+        # Pass through retrieval results to caller
+        yield Response(
+          content=response.content,
+          metadata={"type": "retrieved_context"},
         )
-        semantic_content.append(lower_result)
-
-    # Join all results with newlines
-    combined_semantic_results = "\n".join(
-      semantic_content
-    )
-    logger.info(
-      f"Semantic results formatted: {combined_semantic_results}"
-    )
+      else:
+        # Second response is storage result
+        storage_content = result
+        yield Response(
+          content=response.content,
+          metadata={"type": "storage_result"},
+        )
 
     # Update message metadata with semantic results metadata
-    if isinstance(semantic_results, dict):
+    if isinstance(retrieval_content, dict):
       message.metadata.update(
-        semantic_results.get("metadata", {})
+        retrieval_content.get("metadata", {})
+      )
+    if isinstance(storage_content, dict):
+      message.metadata.update(
+        storage_content.get("metadata", {})
       )
 
+    # Finally, let working memory specialist update workspace
     workspace_manager = WorkspaceManager()
     working_memory_results = {}
     async for response in self.working_memory.process(
@@ -160,9 +232,15 @@ class MemoryCoordinator(BaseAgent):
       if response.metadata.get("streaming"):
         yield response
         continue
-      working_memory_results = json.loads(
-        response.content
-      )
+      try:
+        working_memory_results = json.loads(
+          response.content
+        )
+      except json.JSONDecodeError as e:
+        logger.error(
+          f"Failed to decode working memory response: {e}"
+        )
+        raise
 
     logger.debug(
       f"Response data parsed successfully: {working_memory_results}"
@@ -171,12 +249,18 @@ class MemoryCoordinator(BaseAgent):
     # Update the actual workspace file
     content: str = working_memory_results["content"]
     logger.info("Saving updated content to workspace.")
-    workspace_manager.save_workspace(
-      message.metadata["shared_workspace"],
-      working_memory_results["content"]
-      .strip("```markdown\n")
-      .strip("```"),
-    )
+    try:
+      workspace_manager.save_workspace(
+        message.metadata["shared_workspace"],
+        working_memory_results["content"]
+        .strip("```markdown\n")
+        .strip("```"),
+      )
+    except Exception as e:
+      logger.error(
+        f"Failed to save workspace content: {e}"
+      )
+      raise
 
     yield Response(
       content=content,
