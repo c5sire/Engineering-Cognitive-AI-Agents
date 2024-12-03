@@ -125,13 +125,33 @@ class Message(BaseModel):
     )
 
 
+class ResponseType(StrEnum):
+  """Types of responses in the system."""
+
+  USER_MESSAGE = (
+    "user_message"  # Final output for user
+  )
+  TOOL_RESULT = "tool_result"  # Tool execution results
+  INTERNAL_STEP = (
+    "internal_step"  # Internal processing steps
+  )
+  DEBUG_INFO = (
+    "debug_info"  # Debug/diagnostic information
+  )
+
+
 class Response(BaseModel):
-  """Universal response format."""
+  """Enhanced response model."""
 
   content: str
+  response_type: ResponseType = ResponseType.USER_MESSAGE  # Default to USER_MESSAGE for backward compatibility
+  step_name: str | None = (
+    None  # For grouping related steps
+  )
   metadata: dict[str, Any] = Field(
     default_factory=dict
   )
+  streaming: bool = False
   timestamp: datetime = Field(
     default_factory=lambda: datetime.now(timezone.utc)
   )

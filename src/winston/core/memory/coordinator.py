@@ -70,9 +70,16 @@ from winston.core.agent import BaseAgent
 from winston.core.agent_config import AgentConfig
 from winston.core.memory.episode_analyst import (
   EpisodeAnalyst,
+  EpisodeBoundaryResult,
 )
 from winston.core.memory.semantic.coordinator import (
   SemanticMemoryCoordinator,
+)
+from winston.core.memory.semantic.retrieval import (
+  RetrieveKnowledgeResult,
+)
+from winston.core.memory.semantic.storage import (
+  StoreKnowledgeResult,
 )
 from winston.core.memory.working_memory import (
   WorkingMemorySpecialist,
@@ -154,14 +161,23 @@ class MemoryCoordinator(BaseAgent):
       message
     ):
       if response.metadata.get("streaming"):
+        yield response
         continue
-      try:
-        episode_analysis = json.loads(response.content)
-      except json.JSONDecodeError as e:
-        logger.error(
-          f"Failed to decode episode analysis response: {e}"
+      logger.trace(
+        f"Raw episode analysis obtained: {response}"
+      )
+      response_content = json.loads(response.content)
+      response_metadata = response_content.get(
+        "metadata"
+      )
+      if not response_metadata:
+        logger.error("Response metadata not found")
+        raise ValueError("Response metadata required")
+      episode_analysis = (
+        EpisodeBoundaryResult.model_validate(
+          response_metadata
         )
-        raise
+      )
 
     logger.info(
       f"Episode analysis completed: {episode_analysis}"
@@ -171,60 +187,60 @@ class MemoryCoordinator(BaseAgent):
       "Handling knowledge operations with semantic memory specialist."
     )
 
-    # Combine episode analysis metadata with message metadata
-    message.metadata.update(
-      episode_analysis.get("metadata", {})
-    )
-
     # Let semantic memory coordinator handle knowledge operations
-    # First result will be retrieval, second will be storage
-    retrieval_content = None
-    storage_content = None
+    retrieval_result = None
+    storage_result = None
     async for response in self.semantic_memory.process(
       message
     ):
       if response.metadata.get("streaming"):
+        yield response
         continue
       logger.trace(
         f"Raw semantic results obtained: {response}"
       )
 
-      try:
-        result = json.loads(response.content)
-      except json.JSONDecodeError as e:
+      response_type = response.metadata.get("type")
+      if not response_type:
         logger.error(
-          f"Failed to decode semantic memory response: {e}"
+          "Response type not found in metadata"
         )
-        raise
+        raise ValueError("Response type required")
 
-      # If this is the first non-streaming response, it's retrieval
-      if retrieval_content is None:
-        retrieval_content = result
-        # Pass through retrieval results to caller
-        yield Response(
-          content=response.content,
-          metadata={"type": "retrieved_context"},
+      if (
+        response_type
+        == RetrieveKnowledgeResult.__name__
+      ):
+        logger.trace(
+          f"Retrieval result obtained: {response}"
+        )
+        retrieval_result = (
+          RetrieveKnowledgeResult.model_validate_json(
+            response.content
+          )
+        )
+      elif (
+        response_type == StoreKnowledgeResult.__name__
+      ):
+        logger.trace(
+          f"Storage result obtained: {response}"
+        )
+        storage_result = (
+          StoreKnowledgeResult.model_validate_json(
+            response.content
+          )
         )
       else:
-        # Second response is storage result
-        storage_content = result
-        yield Response(
-          content=response.content,
-          metadata={"type": "storage_result"},
+        logger.error(
+          f"Unknown response type: {response_type}"
         )
-
-    # Update message metadata with semantic results metadata
-    if isinstance(retrieval_content, dict):
-      message.metadata.update(
-        retrieval_content.get("metadata", {})
-      )
-    if isinstance(storage_content, dict):
-      message.metadata.update(
-        storage_content.get("metadata", {})
-      )
+        raise ValueError(
+          f"Unknown response type: {response_type}"
+        )
 
     # Finally, let working memory specialist update workspace
     workspace_manager = WorkspaceManager()
+
     working_memory_results = {}
     async for response in self.working_memory.process(
       message

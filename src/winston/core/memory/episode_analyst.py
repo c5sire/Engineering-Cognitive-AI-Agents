@@ -92,13 +92,13 @@ from winston.core.system import AgentSystem
 from winston.core.tools import Tool
 
 
-class EpisodeBoundaryResponse(BaseModel):
+class EpisodeBoundaryResult(BaseModel):
   """Response from episode boundary detection."""
 
   is_new_episode: bool = Field(
     description="Whether this represents a new episode"
   )
-  context_elements: list[str] = Field(
+  preserve_context: list[str] = Field(
     default_factory=list,
     description="Context elements to preserve",
   )
@@ -123,7 +123,7 @@ class EpisodeAnalyst(BaseAgent):
         name="report_episode_boundary",
         description="Report episode boundary detection results",
         handler=self._handle_boundary_report,
-        input_model=EpisodeBoundaryResponse,
+        input_model=EpisodeBoundaryResult,
         output_model=Response,
       )
     )
@@ -142,7 +142,7 @@ class EpisodeAnalyst(BaseAgent):
     )
 
   async def _handle_boundary_report(
-    self, report: EpisodeBoundaryResponse
+    self, report: EpisodeBoundaryResult
   ) -> Response:
     """Handle the boundary detection report."""
     logger.trace(f"Handling boundary report: {report}")
@@ -152,7 +152,7 @@ class EpisodeAnalyst(BaseAgent):
         content="Episode boundary analyzed",
         metadata={
           "is_new_episode": report.is_new_episode,
-          "preserve_context": report.context_elements,
+          "preserve_context": report.preserve_context,
         },
       )
       logger.info(

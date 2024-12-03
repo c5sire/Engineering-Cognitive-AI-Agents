@@ -11,7 +11,7 @@ from winston.core.agent import AgentConfig
 from winston.core.memory.semantic.storage import (
   KnowledgeActionType,
   StorageSpecialist,
-  StoreKnowledgeResponse,
+  StoreKnowledgeResult,
 )
 from winston.core.messages import Message
 from winston.core.paths import AgentPaths
@@ -61,7 +61,7 @@ async def test_storage_operations():
       if response.metadata.get("streaming"):
         continue
       storage_response = (
-        StoreKnowledgeResponse.model_validate_json(
+        StoreKnowledgeResult.model_validate_json(
           response.content
         )
       )
@@ -107,7 +107,7 @@ async def test_storage_operations():
       if response.metadata.get("streaming"):
         continue
       update_response = (
-        StoreKnowledgeResponse.model_validate_json(
+        StoreKnowledgeResult.model_validate_json(
           response.content
         )
       )
@@ -136,7 +136,7 @@ async def test_storage_operations():
       if response.metadata.get("streaming"):
         continue
       command_response = (
-        StoreKnowledgeResponse.model_validate_json(
+        StoreKnowledgeResult.model_validate_json(
           response.content
         )
       )
@@ -179,7 +179,7 @@ async def test_storage_operations():
       if response.metadata.get("streaming"):
         continue
       related_response = (
-        StoreKnowledgeResponse.model_validate_json(
+        StoreKnowledgeResult.model_validate_json(
           response.content
         )
       )

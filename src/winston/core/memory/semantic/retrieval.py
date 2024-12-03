@@ -147,7 +147,7 @@ class KnowledgeItem(BaseModel):
   )
 
 
-class RetrieveKnowledgeResponse(KnowledgeItem):
+class RetrieveKnowledgeResult(KnowledgeItem):
   """Structured knowledge response with additional lower relevance results."""
 
   lower_relevance_results: list[KnowledgeItem] = Field(
@@ -178,7 +178,7 @@ class RetrievalSpecialist(BaseAgent):
         description="Find relevant knowledge using semantic search",
         handler=self._handle_retrieve_knowledge,
         input_model=RetrieveKnowledgeRequest,
-        output_model=RetrieveKnowledgeResponse,
+        output_model=RetrieveKnowledgeResult,
       )
     )
 
@@ -190,7 +190,7 @@ class RetrievalSpecialist(BaseAgent):
   async def _handle_retrieve_knowledge(
     self,
     request: RetrieveKnowledgeRequest,
-  ) -> RetrieveKnowledgeResponse:
+  ) -> RetrieveKnowledgeResult:
     """Handle knowledge retrieval requests."""
     logger.debug(
       f"Handling retrieval request: {request}"
@@ -203,7 +203,7 @@ class RetrievalSpecialist(BaseAgent):
     logger.debug(f"Found {len(matches)} matches")
 
     if not matches:
-      return RetrieveKnowledgeResponse(
+      return RetrieveKnowledgeResult(
         content=None,
         relevance=None,
         metadata={},
@@ -226,7 +226,7 @@ class RetrievalSpecialist(BaseAgent):
       else:
         lower_relevance_results.append(item)
 
-    return RetrieveKnowledgeResponse(
+    return RetrieveKnowledgeResult(
       content=best_match.content
       if best_match
       else None,

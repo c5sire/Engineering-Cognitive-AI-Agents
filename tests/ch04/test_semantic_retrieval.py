@@ -9,7 +9,7 @@ from loguru import logger
 from winston.core.agent import AgentConfig
 from winston.core.memory.semantic.retrieval import (
   RetrievalSpecialist,
-  RetrieveKnowledgeResponse,
+  RetrieveKnowledgeResult,
 )
 from winston.core.messages import Message
 from winston.core.paths import AgentPaths
@@ -47,16 +47,16 @@ async def test_retrieval_operations():
     )
     logger.info("Test 1: Retrieving from empty store")
 
-    empty_response: (
-      RetrieveKnowledgeResponse | None
-    ) = None
+    empty_response: RetrieveKnowledgeResult | None = (
+      None
+    )
     async for response in specialist.process(
       empty_msg
     ):
       if response.metadata.get("streaming"):
         continue
       empty_response = (
-        RetrieveKnowledgeResponse.model_validate_json(
+        RetrieveKnowledgeResult.model_validate_json(
           response.content
         )
       )
@@ -102,7 +102,7 @@ async def test_retrieval_operations():
     logger.info("Test 2: Retrieving stored knowledge")
 
     retrieval_response: (
-      RetrieveKnowledgeResponse | None
+      RetrieveKnowledgeResult | None
     ) = None
     async for response in specialist.process(
       retrieve_msg
@@ -110,7 +110,7 @@ async def test_retrieval_operations():
       if response.metadata.get("streaming"):
         continue
       retrieval_response = (
-        RetrieveKnowledgeResponse.model_validate_json(
+        RetrieveKnowledgeResult.model_validate_json(
           response.content
         )
       )
@@ -134,16 +134,16 @@ async def test_retrieval_operations():
     )
     logger.info("Test 3: Retrieving multiple results")
 
-    multi_response: (
-      RetrieveKnowledgeResponse | None
-    ) = None
+    multi_response: RetrieveKnowledgeResult | None = (
+      None
+    )
     async for response in specialist.process(
       multi_msg
     ):
       if response.metadata.get("streaming"):
         continue
       multi_response = (
-        RetrieveKnowledgeResponse.model_validate_json(
+        RetrieveKnowledgeResult.model_validate_json(
           response.content
         )
       )

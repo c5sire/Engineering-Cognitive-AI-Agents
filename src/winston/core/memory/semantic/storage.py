@@ -174,7 +174,7 @@ class KnowledgeActionType(StrEnum):
   CONFLICT_RESOLUTION = auto()
 
 
-class StoreKnowledgeResponse(BaseModel):
+class StoreKnowledgeResult(BaseModel):
   """Result of knowledge storage/update operation."""
 
   id: str | None = Field(
@@ -274,21 +274,21 @@ class StorageSpecialist(BaseAgent):
         description="Use this tool when there is no need to store new knowledge",
         handler=self._handle_no_storage_needed,
         input_model=NoStorageNeededRequest,
-        output_model=StoreKnowledgeResponse,
+        output_model=StoreKnowledgeResult,
       ),
       Tool(
         name="store_knowledge",
         description="Store new knowledge with metadata",
         handler=self._handle_store_knowledge,
         input_model=StoreKnowledgeRequest,
-        output_model=StoreKnowledgeResponse,
+        output_model=StoreKnowledgeResult,
       ),
       Tool(
         name="update_knowledge",
         description="Update existing knowledge",
         handler=self._handle_update_knowledge,
         input_model=UpdateKnowledgeRequest,
-        output_model=StoreKnowledgeResponse,  # Same response model for both
+        output_model=StoreKnowledgeResult,  # Same response model for both
       ),
     ]
     for tool in storage_tools:
@@ -304,12 +304,12 @@ class StorageSpecialist(BaseAgent):
   async def _handle_no_storage_needed(
     self,
     request: NoStorageNeededRequest,
-  ) -> StoreKnowledgeResponse:
+  ) -> StoreKnowledgeResult:
     """Handle no storage needed requests."""
     logger.debug(
       f"Handling no storage needed request: {request}"
     )
-    return StoreKnowledgeResponse(
+    return StoreKnowledgeResult(
       action=KnowledgeActionType.NO_STORAGE_NEEDED,
       reason=request.reason,
     )
@@ -317,7 +317,7 @@ class StorageSpecialist(BaseAgent):
   async def _handle_store_knowledge(
     self,
     request: StoreKnowledgeRequest,
-  ) -> StoreKnowledgeResponse:
+  ) -> StoreKnowledgeResult:
     """Handle knowledge storage requests."""
     logger.debug(
       f"Handling store knowledge request: {request}"
@@ -354,7 +354,7 @@ class StorageSpecialist(BaseAgent):
         "Added embedding for the stored knowledge."
       )
 
-      return StoreKnowledgeResponse(
+      return StoreKnowledgeResult(
         id=knowledge_id,
         content=request.content,
         metadata=metadata,
@@ -368,7 +368,7 @@ class StorageSpecialist(BaseAgent):
   async def _handle_update_knowledge(
     self,
     request: UpdateKnowledgeRequest,
-  ) -> StoreKnowledgeResponse:
+  ) -> StoreKnowledgeResult:
     """Handle knowledge update requests."""
     logger.debug(
       f"Handling update knowledge request: {request}"
@@ -412,7 +412,7 @@ class StorageSpecialist(BaseAgent):
       await self._embeddings.update_embedding(updated)
       logger.debug("Updated embedding")
 
-      return StoreKnowledgeResponse(
+      return StoreKnowledgeResult(
         id=request.knowledge_id,
         content=request.new_content,
         metadata=metadata,

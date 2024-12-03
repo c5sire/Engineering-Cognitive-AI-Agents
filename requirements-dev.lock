@@ -14,7 +14,7 @@ aiofiles==23.2.1
     # via chainlit
 aiohappyeyeballs==2.4.4
     # via aiohttp
-aiohttp==3.11.8
+aiohttp==3.11.9
     # via litellm
 aiosignal==1.3.1
     # via aiohttp
@@ -64,7 +64,7 @@ chevron==0.14.0
     # via literalai
 chroma-hnswlib==0.7.6
     # via chromadb
-chromadb==0.5.20
+chromadb==0.5.21
     # via ecaa
 click==8.1.7
     # via chainlit
@@ -119,7 +119,7 @@ filetype==1.2.0
     # via chainlit
 flatbuffers==24.3.25
     # via onnxruntime
-fonttools==4.55.0
+fonttools==4.55.1
     # via matplotlib
 frozenlist==1.5.0
     # via aiohttp
@@ -134,7 +134,7 @@ google-auth==2.36.0
 googleapis-common-protos==1.66.0
     # via opentelemetry-exporter-otlp-proto-grpc
     # via opentelemetry-exporter-otlp-proto-http
-grpcio==1.68.0
+grpcio==1.68.1
     # via chromadb
     # via opentelemetry-exporter-otlp-proto-grpc
 h11==0.14.0
@@ -202,7 +202,7 @@ kubernetes==31.0.0
     # via chromadb
 lazify==0.4.0
     # via chainlit
-litellm==1.53.1
+litellm==1.53.2
     # via ecaa
 literalai==0.0.623
     # via chainlit
@@ -294,7 +294,7 @@ oauthlib==3.2.2
     # via requests-oauthlib
 onnxruntime==1.20.1
     # via chromadb
-openai==1.55.3
+openai==1.56.0
     # via ecaa
     # via litellm
 opentelemetry-api==1.28.2
@@ -377,7 +377,7 @@ posthog==3.7.4
 pre-commit==4.0.1
 prompt-toolkit==3.0.48
     # via ipython
-propcache==0.2.0
+propcache==0.2.1
     # via aiohttp
     # via yarl
 protobuf==5.29.0
@@ -416,7 +416,7 @@ pypika==0.48.9
     # via chromadb
 pyproject-hooks==1.2.0
     # via build
-pytest==8.3.3
+pytest==8.3.4
     # via pytest-asyncio
 pytest-asyncio==0.24.0
     # via ecaa
@@ -477,7 +477,7 @@ requests-oauthlib==2.0.0
 rich==13.9.4
     # via chromadb
     # via typer
-rpds-py==0.21.0
+rpds-py==0.22.0
     # via jsonschema
     # via referencing
 rsa==4.9
@@ -600,7 +600,7 @@ wrapt==1.17.0
     # via opentelemetry-instrumentation
 wsproto==1.2.0
     # via simple-websocket
-yarl==1.18.0
+yarl==1.18.3
     # via aiohttp
 zipp==3.21.0
     # via importlib-metadata

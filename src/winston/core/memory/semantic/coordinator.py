@@ -84,9 +84,11 @@ from winston.core.agent import BaseAgent
 from winston.core.agent_config import AgentConfig
 from winston.core.memory.semantic.retrieval import (
   RetrievalSpecialist,
+  RetrieveKnowledgeResult,
 )
 from winston.core.memory.semantic.storage import (
   StorageSpecialist,
+  StoreKnowledgeResult,
 )
 from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
@@ -160,46 +162,56 @@ class SemanticMemoryCoordinator(BaseAgent):
       f"Retrieval message created: {retrieval_message}"
     )
 
-    retrieved_content = None
     async for (
       response
     ) in self.retrieval_specialist.process(
       retrieval_message
     ):
-      if not response.metadata.get("streaming"):
-        retrieved_content = response.content
-        logger.debug(
-          f"Retrieved content: {retrieved_content}"
+      if response.metadata.get("streaming"):
+        yield response
+        continue
+      logger.debug(f"Retrieval response: {response}")
+      retrieval_result = (
+        RetrieveKnowledgeResult.model_validate_json(
+          response.content
         )
-        # Pass retrieved context back to Memory Coordinator
+      )
+      yield Response(
+        content=retrieval_result.model_dump_json(),
+        metadata={
+          "type": RetrieveKnowledgeResult.__name__
+        },
+      )
+
+      # 2. Let Storage Specialist analyze and handle storage needs
+      storage_message = Message(
+        content=message.content,
+        metadata={
+          "retrieved_content": retrieval_result.content
+        },
+      )
+
+      logger.debug(
+        f"Storage message created: {storage_message}"
+      )
+
+      async for (
+        response
+      ) in self.storage_specialist.process(
+        storage_message
+      ):
+        if response.metadata.get("streaming"):
+          yield response
+          continue
+        logger.debug(f"Storage response: {response}")
+        storage_result = (
+          StoreKnowledgeResult.model_validate_json(
+            response.content
+          )
+        )
         yield Response(
-          content=retrieved_content,
-          metadata={"type": "retrieved_context"},
-        )
-
-    # 2. Let Storage Specialist analyze and handle storage needs
-    storage_message = Message(
-      content=message.content,
-      metadata={
-        "retrieved_content": retrieved_content
-      },
-    )
-
-    logger.debug(
-      f"Storage message created: {storage_message}"
-    )
-
-    async for (
-      response
-    ) in self.storage_specialist.process(
-      storage_message
-    ):
-      if not response.metadata.get("streaming"):
-        # Pass storage results back to Memory Coordinator
-        logger.debug(
-          f"Received response from storage: {response.content}"
-        )
-        yield Response(
-          content=response.content,
-          metadata={"type": "storage_result"},
+          content=storage_result.model_dump_json(),
+          metadata={
+            "type": StoreKnowledgeResult.__name__
+          },
         )

@@ -1,7 +1,7 @@
 """Winston with enhanced memory capabilities."""
 
 from pathlib import Path
-from typing import AsyncIterator
+from typing import AsyncIterator, cast
 
 from loguru import logger
 
@@ -11,7 +11,8 @@ from winston.core.memory.coordinator import (
 )
 from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
-from winston.core.protocols import Agent, System
+from winston.core.protocols import Agent
+from winston.core.system import AgentSystem, System
 from winston.ui.chainlit_app import AgentChat
 
 
@@ -19,8 +20,7 @@ class EnhancedMemoryWinston(BaseAgent):
   """Winston with enhanced memory capabilities."""
 
   async def process(
-    self,
-    message: Message,
+    self, message: Message
   ) -> AsyncIterator[Response]:
     """Process message using memory coordinator.
 
@@ -35,74 +35,27 @@ class EnhancedMemoryWinston(BaseAgent):
         Responses from processing the message
     """
     logger.info(
-      f"Processing with memory system: {message.content}"
+      f"Delegating to memory coordinator: {message.content}"
     )
 
-    # First, check memory for relevant context
-    context_message = Message(
-      content=(
-        "Before responding, please check your knowledge "
-        f"store for anything relevant to: {message.content}"
-      ),
+    # Create message with shared workspace
+    coordinator_message = Message(
+      content=message.content,
       metadata={
         **message.metadata,
         "shared_workspace": self.workspace_path,
       },
     )
 
-    # Let memory coordinator retrieve context
-    context_responses = []
+    # Delegate to memory coordinator
     async for (
       response
     ) in self.system.invoke_conversation(
       "memory_coordinator",
-      context_message.content,
-      context=context_message.metadata,
-    ):
-      if not response.metadata.get("streaming", False):
-        context_responses.append(response.content)
-
-    # Generate response using retrieved context
-    context_str = "\n".join(context_responses)
-    response_prompt = f"""
-        Given this message:
-        {message.content}
-
-        And this relevant context from memory:
-        {context_str}
-
-        Generate a response that:
-        1. Incorporates relevant remembered information
-        2. Maintains consistency with past interactions
-        3. Shows understanding of user context
-        """
-
-    # Generate and stream response
-    async for (
-      response
-    ) in self.generate_streaming_response(
-      Message(content=response_prompt)
+      coordinator_message.content,
+      context=coordinator_message.metadata,
     ):
       yield response
-
-    # After responding, have memory coordinator evaluate for storage
-    storage_message = Message(
-      content=(
-        "Please evaluate this interaction for important "
-        f"information to store: {message.content}"
-      ),
-      metadata={
-        **message.metadata,
-        "shared_workspace": self.workspace_path,
-      },
-    )
-
-    async for _ in self.system.invoke_conversation(
-      "memory_coordinator",
-      storage_message.content,
-      context=storage_message.metadata,
-    ):
-      pass  # Let coordinator store silently
 
 
 class EnhancedMemoryWinstonChat(AgentChat):
@@ -136,11 +89,12 @@ class EnhancedMemoryWinstonChat(AgentChat):
     # Create and register memory coordinator
     coordinator_config = AgentConfig.from_yaml(
       self.paths.system_agents_config
-      / "memory_coordinator.yaml"
+      / "memory"
+      / "coordinator.yaml"
     )
     system.register_agent(
       MemoryCoordinator(
-        system=system,
+        system=cast(AgentSystem, system),
         config=coordinator_config,
         paths=self.paths,
       )
@@ -149,7 +103,8 @@ class EnhancedMemoryWinstonChat(AgentChat):
     # Create Winston agent
     config = AgentConfig.from_yaml(
       self.paths.config
-      / "agents/winston_enhanced_memory.yaml"
+      / "agents"
+      / "winston_enhanced_memory.yaml"
     )
     return EnhancedMemoryWinston(
       system=system,
