@@ -166,9 +166,13 @@ class BaseAgent(Agent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Handle conversation with LLM integration."""
+    logger.debug(
+      f"Handling conversation for message: {message}"
+    )
     messages = self._prepare_messages(message)
     tools = self.tool_manager.get_tools_schema()
     try:
+      logger.info("Starting LLM conversation...")
       response = await acompletion(
         model=self.config.model,
         messages=messages,
@@ -177,7 +181,6 @@ class BaseAgent(Agent):
         tools=tools if tools else None,
         timeout=self.config.timeout,
       )
-
       if self.config.stream:
         async for (
           chunk
@@ -191,7 +194,9 @@ class BaseAgent(Agent):
         )
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(
+        f"Exception occurred during conversation handling: {str(e)}"
+      )
       yield Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -203,10 +208,14 @@ class BaseAgent(Agent):
     """Prepare messages for LLM."""
     messages: list[ChatCompletionMessageParam] = []
 
-    if self.config.system_prompt:
+    if self.config.system_prompt_template:
+      # Render template with message metadata
+      system_prompt = self.config.render_system_prompt(
+        message.metadata
+      )
       messages.append(
         Message.system(
-          self.config.system_prompt
+          system_prompt
         ).to_chat_completion_message()
       )
 
@@ -241,6 +250,14 @@ class BaseAgent(Agent):
 
       # Handle tool calls completion
       if (
+        hasattr(choices, "finish_reason")
+        and choices["finish_reason"] == "stop"
+        and not tool_calls
+      ):
+        logger.debug(
+          "Stream completed with no tool calls present"
+        )
+      elif (
         hasattr(choices, "finish_reason")
         and choices["finish_reason"] == "tool_calls"
         and tool_calls
@@ -315,6 +332,9 @@ class BaseAgent(Agent):
         )
 
     if accumulated_content:
+      logger.debug(
+        f"Accumulated content: {accumulated_content}"
+      )
       self.state.last_response = accumulated_content
 
   async def _process_single_response(
@@ -328,7 +348,12 @@ class BaseAgent(Agent):
     if not message:
       raise ValueError("No message in response")
 
-    if (
+    if not (
+      hasattr(message, "tool_calls")
+      and message.tool_calls
+    ):
+      logger.debug("No tool calls present in response")
+    elif (
       hasattr(message, "tool_calls")
       and message.tool_calls
     ):
@@ -394,8 +419,14 @@ class BaseAgent(Agent):
     self, message: Message
   ) -> Response:
     """Generate a non-streaming response from the LLM."""
+    logger.debug(
+      f"Generating response for message: {message}"
+    )
     messages = self._prepare_messages(message)
     try:
+      logger.info(
+        "Starting LLM response generation..."
+      )
       response = await acompletion(
         model=self.config.model,
         messages=messages,
@@ -405,19 +436,22 @@ class BaseAgent(Agent):
       )
       model_response = cast(ModelResponse, response)
       if not model_response.choices:
+        logger.error("No choices in response")
         raise ValueError("No choices in response")
 
       message = model_response.choices[0].message
       if not message:
+        logger.error("No message in response")
         raise ValueError("No message in response")
 
       if message.content:
         return Response(content=message.content)
       else:
+        logger.error("No content in message")
         raise ValueError("No content in message")
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(f"LLM error occurred: {str(e)}")
       return Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -554,3 +588,25 @@ class BaseAgent(Agent):
         content=f"Error processing image: {str(e)}",
         metadata={"error": True},
       )
+
+  async def process(
+    self,
+    message: Message,
+  ) -> AsyncIterator[Response]:
+    """Process messages to coordinate memory operations.
+
+    Parameters
+    ----------
+    message : Message
+        The message to process
+
+    Yields
+    ------
+    Response
+        Responses from memory operations
+    """
+    # Let the LLM evaluate the message using system prompt and tools
+    async for response in self._handle_conversation(
+      message
+    ):
+      yield response

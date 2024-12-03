@@ -1,0 +1,25 @@
+---
+config:
+  layout: elk
+---
+graph TD
+    MP[Morning Preference] -->|Semantic Association| MR[Morning Routine]
+    MP -->|Semantic Association| FT[Family Tradition]
+    MP -->|Semantic Association| BP[Beverage Preferences]
+
+    MR -->|Contains| ST[Schedule/Timing]
+    FT -->|Includes| FH[Family History]
+    BP -->|Tracks| PC[Preference Changes]
+
+    subgraph "Semantic Space"
+        MP
+        MR
+        FT
+        BP
+    end
+
+    subgraph "Context Details"
+        ST
+        FH
+        PC
+    end

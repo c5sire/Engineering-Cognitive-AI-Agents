@@ -1,0 +1,28 @@
+---
+config:
+  layout: elk
+---
+graph TD
+    subgraph "Knowledge Operations"
+        Store[Store Knowledge]
+        Query[Query Knowledge]
+    end
+
+    subgraph KS["Knowledge Store"]
+        subgraph "Filesystem"
+            subgraph "JSON Files"
+                KO[Knowledge Objects]
+            end
+        end
+    end
+
+    subgraph ES["Embedding Store"]
+        subgraph "ChromaDB"
+            VE[Vector Embeddings]
+            MD[Metadata]
+        end
+    end
+
+    Store --> KS
+    Store --> ES
+    Query --> ES
