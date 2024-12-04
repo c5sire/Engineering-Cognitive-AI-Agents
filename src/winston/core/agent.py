@@ -273,7 +273,7 @@ class BaseAgent(Agent):
         chunk["choices"],
       )
       choices: StreamingChoices = choices_list[0]
-      logger.trace(f"Choices: {choices}")
+      # logger.trace(f"Choices: {choices}")
       # Handle tool calls completion
       if (
         hasattr(choices, "finish_reason")

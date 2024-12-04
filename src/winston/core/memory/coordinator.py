@@ -83,6 +83,7 @@ from winston.core.memory.semantic.storage import (
 )
 from winston.core.memory.working_memory import (
   WorkingMemorySpecialist,
+  WorkspaceUpdateResult,
 )
 from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
@@ -152,6 +153,20 @@ class MemoryCoordinator(BaseAgent):
         "Shared workspace required for memory operations"
       )
 
+    # Load the current workspace
+    workspace_manager = WorkspaceManager()
+    current_workspace = (
+      workspace_manager.load_workspace(
+        message.metadata["shared_workspace"]
+      )
+    )
+
+    # Add the current workspace to the message metadata,
+    # making it available to downstream agents
+    message.metadata["current_workspace"] = (
+      current_workspace
+    )
+
     logger.trace(
       "Evaluating context shift with episode analyst."
     )
@@ -178,6 +193,14 @@ class MemoryCoordinator(BaseAgent):
           response_metadata
         )
       )
+      # Add the episode analysis to the message metadata,
+      # making it available to downstream agents
+      message.metadata["is_new_episode"] = (
+        episode_analysis.is_new_episode
+      )
+      message.metadata["preserve_context"] = (
+        episode_analysis.preserve_context
+      )
 
     logger.info(
       f"Episode analysis completed: {episode_analysis}"
@@ -200,6 +223,9 @@ class MemoryCoordinator(BaseAgent):
         f"Raw semantic results obtained: {response}"
       )
 
+      # There are two types of responses from the semantic memory coordinator:
+      # - RetrieveKnowledgeResult
+      # - StoreKnowledgeResult
       response_type = response.metadata.get("type")
       if not response_type:
         logger.error(
@@ -219,6 +245,11 @@ class MemoryCoordinator(BaseAgent):
             response.content
           )
         )
+        # Add the retrieved context to the message metadata,
+        # making it available to downstream agents
+        message.metadata["retrieved_context"] = (
+          retrieval_result.model_dump_json()
+        )
       elif (
         response_type == StoreKnowledgeResult.__name__
       ):
@@ -230,6 +261,11 @@ class MemoryCoordinator(BaseAgent):
             response.content
           )
         )
+        # Add the stored knowledge to the message metadata,
+        # making it available to downstream agents
+        message.metadata["stored_knowledge"] = (
+          storage_result.model_dump_json()
+        )
       else:
         logger.error(
           f"Unknown response type: {response_type}"
@@ -239,32 +275,32 @@ class MemoryCoordinator(BaseAgent):
         )
 
     # Finally, let working memory specialist update workspace
-    workspace_manager = WorkspaceManager()
-
-    working_memory_response = None
+    working_memory_result = None
     async for response in self.working_memory.process(
       message
     ):
       if response.metadata.get("streaming"):
         yield response
         continue
-      working_memory_response = response
-
-    assert working_memory_response is not None
-    logger.trace(
-      f"Working memory results obtained: {working_memory_response}"
-    )
+      logger.trace(
+        f"Working memory results obtained: {response}"
+      )
+      working_memory_result = (
+        WorkspaceUpdateResult.model_validate_json(
+          response.content
+        )
+      )
 
     # Update the actual workspace file
     logger.info("Saving updated content to workspace.")
     workspace_manager.save_workspace(
       message.metadata["shared_workspace"],
-      working_memory_response.content.strip(
-        "```markdown\n"
-      ).strip("```"),
+      working_memory_result.updated_workspace,
     )
 
+    # Memory operations are complete, yield the result of
+    # the updated workspacce as a response
     yield Response(
-      content=working_memory_response.content,
+      content=working_memory_result.updated_workspace,
       metadata=message.metadata,
     )

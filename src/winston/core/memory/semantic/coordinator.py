@@ -187,7 +187,8 @@ class SemanticMemoryCoordinator(BaseAgent):
       storage_message = Message(
         content=message.content,
         metadata={
-          "retrieved_content": retrieval_result.content
+          "content": message.content,
+          "retrieved_content": retrieval_result.content,
         },
       )
 

@@ -125,6 +125,9 @@ class RetrieveKnowledgeRequest(BaseModel):
   query: str = Field(
     description="The search query to find relevant knowledge"
   )
+  rationale: str = Field(
+    description="Explanation for the retrieval query"
+  )
   max_results: int = Field(
     description="Maximum number of results to return"
   )
