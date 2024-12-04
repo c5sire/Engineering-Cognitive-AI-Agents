@@ -1,5 +1,6 @@
 """Step management utilities for Winston's processing pipeline."""
 
+import json
 from typing import Literal
 
 import chainlit as cl
@@ -81,15 +82,13 @@ class ProcessingStep:
     if not self.cl_step:
       return
 
-    if (
-      response.response_type
-      == ResponseType.TOOL_RESULT
-    ):
-      self.cl_step.input = response.metadata.get(
-        "tool_input", ""
+    if response.response_type == ResponseType.STEP:
+      self.cl_step.input = json.dumps(
+        response.metadata, indent=2
       )
-      self.cl_step.output = response.content
-    elif response.streaming:
+      if response.content:
+        self.cl_step.output = response.content
+    elif response.streaming and response.content:
       await self.cl_step.stream_token(response.content)
-    else:
+    elif response.content:
       self.cl_step.output = response.content

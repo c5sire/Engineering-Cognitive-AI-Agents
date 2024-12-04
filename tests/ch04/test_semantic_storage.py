@@ -73,7 +73,7 @@ async def test_storage_operations():
     assert storage_response is not None
     assert (
       storage_response.action
-      == KnowledgeActionType.CREATED
+      == KnowledgeActionType.CREATE
     )
     assert storage_response.id is not None
     assert storage_response.content is not None
@@ -191,6 +191,6 @@ async def test_storage_operations():
     assert related_response is not None
     assert (
       related_response.action
-      == KnowledgeActionType.CREATED
+      == KnowledgeActionType.CREATE
     )
     logger.info("Completed storage specialist tests")

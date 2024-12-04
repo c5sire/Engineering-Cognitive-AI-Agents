@@ -78,6 +78,7 @@ system_prompt: |
   - Think about what YOUR future self needs to know
 
   After analysis, use update_workspace to generate a complete, coherent workspace that reflects your understanding.
+required_tool: update_workspace
 temperature: 0.7
 stream: true
 timeout: 30.0

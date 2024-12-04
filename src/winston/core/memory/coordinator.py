@@ -241,44 +241,30 @@ class MemoryCoordinator(BaseAgent):
     # Finally, let working memory specialist update workspace
     workspace_manager = WorkspaceManager()
 
-    working_memory_results = {}
+    working_memory_response = None
     async for response in self.working_memory.process(
       message
     ):
       if response.metadata.get("streaming"):
         yield response
         continue
-      try:
-        working_memory_results = json.loads(
-          response.content
-        )
-      except json.JSONDecodeError as e:
-        logger.error(
-          f"Failed to decode working memory response: {e}"
-        )
-        raise
+      working_memory_response = response
 
-    logger.debug(
-      f"Response data parsed successfully: {working_memory_results}"
+    assert working_memory_response is not None
+    logger.trace(
+      f"Working memory results obtained: {working_memory_response}"
     )
 
     # Update the actual workspace file
-    content: str = working_memory_results["content"]
     logger.info("Saving updated content to workspace.")
-    try:
-      workspace_manager.save_workspace(
-        message.metadata["shared_workspace"],
-        working_memory_results["content"]
-        .strip("```markdown\n")
-        .strip("```"),
-      )
-    except Exception as e:
-      logger.error(
-        f"Failed to save workspace content: {e}"
-      )
-      raise
+    workspace_manager.save_workspace(
+      message.metadata["shared_workspace"],
+      working_memory_response.content.strip(
+        "```markdown\n"
+      ).strip("```"),
+    )
 
     yield Response(
-      content=content,
+      content=working_memory_response.content,
       metadata=message.metadata,
     )

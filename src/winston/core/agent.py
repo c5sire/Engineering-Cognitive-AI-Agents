@@ -171,6 +171,31 @@ class BaseAgent(Agent):
     )
     messages = self._prepare_messages(message)
     tools = self.tool_manager.get_tools_schema()
+    logger.trace(f"Tools schema: {tools}")
+    tool_choice = None
+    if self.config.required_tool:
+      # Validate required tool exists in schema
+      available_tools = {
+        tool["function"]["name"]
+        for tool in tools
+        if tool.get("type") == "function"
+        and "function" in tool
+      }
+      if (
+        self.config.required_tool
+        not in available_tools
+      ):
+        raise ValueError(
+          f"Required tool '{self.config.required_tool}' not found in available tools: {available_tools}"
+        )
+
+      tool_choice = {
+        "type": "function",  # OpenAI format
+        "function": {
+          "name": self.config.required_tool
+        },
+      }
+    logger.trace(f"Tool choice: {tool_choice}")
     try:
       logger.info("Starting LLM conversation...")
       response = await acompletion(
@@ -179,6 +204,7 @@ class BaseAgent(Agent):
         temperature=self.config.temperature,
         stream=self.config.stream,
         tools=tools if tools else None,
+        tool_choice=tool_choice,
         timeout=self.config.timeout,
       )
       if self.config.stream:
@@ -247,19 +273,26 @@ class BaseAgent(Agent):
         chunk["choices"],
       )
       choices: StreamingChoices = choices_list[0]
-
+      logger.trace(f"Choices: {choices}")
       # Handle tool calls completion
       if (
         hasattr(choices, "finish_reason")
-        and choices["finish_reason"] == "stop"
+        and choices["finish_reason"]
+        in ("tool_calls", "stop")
         and not tool_calls
       ):
         logger.debug(
           "Stream completed with no tool calls present"
         )
+        # Ensure tool calls are present if a tool choice was specified
+        if self.config.required_tool:
+          raise ValueError(
+            "Expected tool call in response but none found."
+          )
       elif (
         hasattr(choices, "finish_reason")
-        and choices["finish_reason"] == "tool_calls"
+        and choices["finish_reason"]
+        in ("tool_calls", "stop")
         and tool_calls
       ):
         results = []
@@ -353,6 +386,11 @@ class BaseAgent(Agent):
       and message.tool_calls
     ):
       logger.debug("No tool calls present in response")
+      # Ensure tool calls are present if a tool choice was specified
+      if self.config.required_tool:
+        raise ValueError(
+          "Expected tool call in response but none found."
+        )
     elif (
       hasattr(message, "tool_calls")
       and message.tool_calls

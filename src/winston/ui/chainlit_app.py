@@ -46,21 +46,12 @@ class AgentChat:
     self,
     message: cl.Message,
   ) -> None:
-    """
-    Handle incoming chat messages with enhanced step visualization.
-
-    Parameters
-    ----------
-    message : cl.Message
-        The incoming message from the user.
-    """
+    """Handle incoming chat messages with enhanced step visualization."""
     system: AgentSystem = cast(
-      AgentSystem,
-      cl.user_session.get("system"),
+      AgentSystem, cl.user_session.get("system")
     )
     agent_id: str = cast(
-      str,
-      cl.user_session.get("agent_id"),
+      str, cl.user_session.get("agent_id")
     )
 
     # Get history in proper format
@@ -77,74 +68,61 @@ class AgentChat:
     accumulated_content: list[str] = []
 
     try:
-      async for response in system.invoke_conversation(
-        agent_id,
-        message.content,
-        context=metadata,
-      ):
-        if (
-          response.response_type
-          == ResponseType.USER_MESSAGE
+      async with ProcessingStep(
+        name="Process Message", step_type="run"
+      ) as step:
+        async for (
+          response
+        ) in system.invoke_conversation(
+          agent_id, message.content, context=metadata
         ):
-          # Create message if it doesn't exist
-          if current_msg is None:
-            current_msg = cl.Message(content="")
-            await current_msg.send()
+          if (
+            response.response_type == ResponseType.USER
+          ):
+            # Create message if it doesn't exist
+            if current_msg is None:
+              current_msg = cl.Message(content="")
+              await current_msg.send()
 
-          # Always stream tokens for user messages
-          await current_msg.stream_token(
-            response.content
-          )
-          accumulated_content.append(response.content)
-
-        elif (
-          response.response_type
-          == ResponseType.TOOL_RESULT
-        ):
-          async with ProcessingStep(
-            name=response.metadata.get(
-              "tool_name", "Tool"
-            ),
-            step_type="tool",
-          ) as step:
+            # Always stream tokens for user messages
+            await current_msg.stream_token(
+              response.content
+            )
+            accumulated_content.append(
+              response.content
+            )
+          elif (
+            response.response_type
+            == ResponseType.INTERNAL
+          ):
             await step.stream_response(response)
 
-        elif (
-          response.response_type
-          == ResponseType.INTERNAL_STEP
-        ):
-          async with ProcessingStep(
-            name=response.step_name or "Processing",
-            step_type="run",
-          ) as step:
-            await step.stream_response(response)
+        # Ensure final content is updated
+        if current_msg is not None:
+          await current_msg.update()
 
-      # Ensure final content is updated
-      if current_msg is not None:
-        await current_msg.update()
+        # Update history with conversation
+        history = cast(
+          list[dict[str, str]],
+          cl.user_session.get("history", []),
+        )
 
-      # Update history with conversation
-      history = cast(
-        list[dict[str, str]],
-        cl.user_session.get("history", []),
-      )
+        user_message = Message(content=message.content)
+        assistant_message = Response(
+          content="".join(accumulated_content)
+        )
 
-      user_message = Message(content=message.content)
-      assistant_message = Response(
-        content="".join(accumulated_content)
-      )
+        history.extend(
+          [
+            user_message.to_history_format(),
+            assistant_message.to_history_format(),
+          ]
+        )
 
-      history.extend(
-        [
-          user_message.to_history_format(),
-          assistant_message.to_history_format(),
-        ]
-      )
-
-      cl.user_session.set("history", history)  # type: ignore
+        cl.user_session.set("history", history)  # type: ignore
 
     except Exception as e:
-      logger.exception("Error processing message")
+      logger.exception(e)
       await cl.Message(
         content=f"An error occurred: {str(e)}"
       ).send()

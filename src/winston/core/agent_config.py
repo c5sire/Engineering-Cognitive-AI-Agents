@@ -45,6 +45,10 @@ class AgentConfig(BaseModel):
     default="default",
     description="Workspace template to use",
   )
+  required_tool: str | None = Field(
+    default=None,
+    description="Tool that must be called during processing",
+  )
 
   def render_system_prompt(
     self, metadata: dict[str, Any]

@@ -17,18 +17,17 @@ system_prompt: |
   1. For no existing knowledge found:
      - Evaluate if this should be stored
      - Consider: Is this a command? A question? A fact?
-     - Use store_knowledge if this represents storable information
+     - Use manage_knowledge tool with CREATE action if this represents storable information
      - Include appropriate metadata for future retrieval
 
   2. For relevant knowledge found:
      - Determine relationship to existing knowledge
-     - Is this new complementary information? Use store_knowledge
-     - Does this modify existing knowledge? Use update_knowledge
+     - Is this new complementary information? Use manage_knowledge tool with CREATE action
+     - Does this modify existing knowledge? Use manage_knowledge tool with UPDATE action
+     - Is this a change over time? Use manage_knowledge tool with TEMPORAL_CHANGE action
+     - Is this a conflict? Use manage_knowledge tool with CONFLICT_RESOLUTION action
+     - Is this a correction? Use manage_knowledge tool with CORRECTION action
      - Include relationship metadata to maintain connections
-
-  3. For exact matches found:
-     - Is this a change over time? Use update_knowledge with temporal tracking
-     - Is this a correction? Use update_knowledge with conflict resolution
      - Should old version be preserved? Set preserve_history flag
 
   For reference, here are the types of actions you can take:
@@ -37,7 +36,8 @@ system_prompt: |
     """Types of knowledge storage actions."""
 
     NO_STORAGE_NEEDED = auto()
-    CREATED = auto()
+    CREATE = auto()
+    UPDATE = auto()
     TEMPORAL_CHANGE = auto()
     CORRECTION = auto()
     CONFLICT_RESOLUTION = auto()
@@ -54,6 +54,6 @@ system_prompt: |
   - Facts, preferences, and observations often need storage
   - Changes over time should preserve history
   - Corrections should resolve conflicts clearly
-
+required_tool: manage_knowledge
 temperature: 0.7
 stream: true

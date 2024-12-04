@@ -14,7 +14,7 @@ from typing import Any
 
 class ResponseType(StrEnum):
     """Types of responses in the system."""
-    USER_MESSAGE = "user_message"      # Final output for user
+    USER = "user_message"      # Final output for user
     TOOL_RESULT = "tool_result"        # Tool execution results
     INTERNAL_STEP = "internal_step"    # Internal processing steps
     DEBUG_INFO = "debug_info"          # Debug/diagnostic information
@@ -109,7 +109,7 @@ async def process(self, message: Message) -> AsyncIterator[Response]:
                 # Final user-facing response
                 yield Response(
                     content=response.content,
-                    response_type=ResponseType.USER_MESSAGE,
+                    response_type=ResponseType.USER,
                     metadata=response.metadata
                 )
 ```
@@ -127,7 +127,7 @@ async def handle_message(self, message: cl.Message):
         message.content,
         context={"history": cl.user_session.get("history", [])}
     ):
-        if response.response_type == ResponseType.USER_MESSAGE:
+        if response.response_type == ResponseType.USER:
             if not hasattr(self, 'current_msg'):
                 self.current_msg = cl.Message(content="")
                 await self.current_msg.send()
@@ -239,7 +239,7 @@ from pydantic import BaseModel, Field
 
 class ResponseType(StrEnum):
     """Types of responses in the system."""
-    USER_MESSAGE = "user_message"
+    USER = "user_message"
     TOOL_RESULT = "tool_result"
     INTERNAL_STEP = "internal_step"
     DEBUG_INFO = "debug_info"

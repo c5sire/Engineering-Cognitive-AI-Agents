@@ -1,5 +1,5 @@
 {
-  "editor.rulers": [55],
+  "editor.rulers": [120],
   "editor.tabSize": 2,
   "jupyter.notebookFileRoot": "${fileDirname}"
 }
