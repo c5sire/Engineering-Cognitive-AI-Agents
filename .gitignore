@@ -193,5 +193,5 @@ wheels/
 *_files.md
 *.docx
 *:Zone.Identifier
-
+./examples/**workspaces/
 public/
