@@ -4,15 +4,9 @@
 from typing import cast
 
 import chainlit as cl
-from loguru import logger
 
-from winston.core.messages import (
-  Message,
-  Response,
-  ResponseType,
-)
+from winston.core.messages import Message, Response
 from winston.core.protocols import Agent, System
-from winston.core.steps import ProcessingStep
 from winston.core.system import AgentSystem
 
 
@@ -46,86 +40,111 @@ class AgentChat:
     self,
     message: cl.Message,
   ) -> None:
-    """Handle incoming chat messages with enhanced step visualization."""
+    """
+    Handle incoming chat messages.
+
+    Parameters
+    ----------
+    message : cl.Message
+        The incoming message from the user.
+
+    Raises
+    ------
+    ValueError
+        If agent is not found in system.
+    """
     system: AgentSystem = cast(
-      AgentSystem, cl.user_session.get("system")
+      AgentSystem,
+      cl.user_session.get("system"),
     )
     agent_id: str = cast(
-      str, cl.user_session.get("agent_id")
+      str,
+      cl.user_session.get("agent_id"),
     )
 
     # Get history in proper format
     history = cl.user_session.get("history", [])
-    metadata = {"history": history}
 
-    # Handle image uploads
+    # Track if we've created the response message
+    msg: cl.Message | None = None
+    accumulated_content: list[str] = []
+    tool_responses: list[
+      str
+    ] = []  # Track tool responses
+
+    # Handle image uploads by adding to metadata
+    metadata = {"history": history}
     if message.elements and len(message.elements) > 0:
       image = message.elements[0]
       if isinstance(image, cl.Image):
         metadata["image_path"] = image.path
 
-    current_msg: cl.Message | None = None
-    accumulated_content: list[str] = []
+    # Stream response
+    async for response in system.invoke_conversation(
+      agent_id,
+      message.content,
+      context=metadata,
+    ):
+      if response.metadata.get("tool_call"):
+        # Create a tool execution step
+        async with cl.Step(
+          name=response.metadata["tool_name"],
+          type="tool",
+          show_input=True,
+        ) as step:
+          step.input = response.metadata["tool_args"]
+          step.output = response.content
 
-    try:
-      async with ProcessingStep(
-        name="Process Message", step_type="run"
-      ) as step:
-        async for (
-          response
-        ) in system.invoke_conversation(
-          agent_id, message.content, context=metadata
-        ):
+          # If there's a formatted response, create a message and track it
           if (
-            response.response_type == ResponseType.USER
-          ):
-            # Create message if it doesn't exist
-            if current_msg is None:
-              current_msg = cl.Message(content="")
-              await current_msg.send()
-
-            # Always stream tokens for user messages
-            await current_msg.stream_token(
-              response.content
+            formatted_response
+            := response.metadata.get(
+              "formatted_response"
             )
-            accumulated_content.append(
-              response.content
-            )
-          elif (
-            response.response_type
-            == ResponseType.INTERNAL
           ):
-            await step.stream_response(response)
+            tool_responses.append(formatted_response)
+            msg = cl.Message(
+              content=formatted_response
+            )
+            await msg.send()
+      else:
+        # Create message if this is first content
+        if msg is None:
+          msg = cl.Message(content="")
+          await msg.send()
 
-        # Ensure final content is updated
-        if current_msg is not None:
-          await current_msg.update()
+        accumulated_content.append(response.content)
+        await msg.stream_token(response.content)
 
-        # Update history with conversation
-        history = cast(
-          list[dict[str, str]],
-          cl.user_session.get("history", []),
-        )
+    # Update final message if we created one
+    if msg is not None:
+      await msg.update()
 
-        user_message = Message(content=message.content)
-        assistant_message = Response(
-          content="".join(accumulated_content)
-        )
+    # Update history with both user message and response
+    history = cast(
+      list[dict[str, str]],
+      cl.user_session.get("history", []),
+    )
 
-        history.extend(
-          [
-            user_message.to_history_format(),
-            assistant_message.to_history_format(),
-          ]
-        )
+    user_message = Message(content=message.content)
+    # Include tool responses in the assistant's message if any
+    assistant_content = (
+      " ".join(tool_responses)
+      if tool_responses
+      else "".join(accumulated_content)
+    )
+    assistant_message = Response(
+      content=assistant_content
+    )
 
-        cl.user_session.set("history", history)  # type: ignore
+    history.extend(
+      [
+        user_message.to_history_format(),
+        assistant_message.to_history_format(),
+      ]
+    )
 
-    except Exception as e:
-      logger.exception(e)
-      await cl.Message(
-        content=f"An error occurred: {str(e)}"
-      ).send()
+    cl.user_session.set("history", history)  # type: ignore
 
   def create_agent(
     self,

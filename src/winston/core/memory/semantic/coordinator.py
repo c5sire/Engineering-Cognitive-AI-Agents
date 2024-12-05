@@ -92,6 +92,7 @@ from winston.core.memory.semantic.storage import (
 )
 from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
+from winston.core.steps import ProcessingStep
 from winston.core.system import AgentSystem
 
 
@@ -133,7 +134,8 @@ class SemanticMemoryCoordinator(BaseAgent):
     )
 
   async def process(
-    self, message: Message
+    self,
+    message: Message,
   ) -> AsyncIterator[Response]:
     """
     Process semantic memory operations.
@@ -162,40 +164,62 @@ class SemanticMemoryCoordinator(BaseAgent):
       f"Retrieval message created: {retrieval_message}"
     )
 
-    async for (
-      response
-    ) in self.retrieval_specialist.process(
-      retrieval_message
-    ):
-      if response.metadata.get("streaming"):
-        yield response
-        continue
-      logger.debug(f"Retrieval response: {response}")
-      retrieval_result = (
-        RetrieveKnowledgeResult.model_validate_json(
-          response.content
+    retrieval_result = None
+    async with ProcessingStep(
+      name="Semantic Retrieval agent",
+      step_type="run",
+    ) as step:
+      async for (
+        response
+      ) in self.retrieval_specialist.process(
+        retrieval_message
+      ):
+        if response.metadata.get("streaming"):
+          yield response
+          continue
+        logger.debug(f"Retrieval response: {response}")
+        retrieval_result = (
+          RetrieveKnowledgeResult.model_validate_json(
+            response.content
+          )
         )
-      )
-      yield Response(
-        content=retrieval_result.model_dump_json(),
-        metadata={
-          "type": RetrieveKnowledgeResult.__name__
-        },
-      )
+        retrieval_result_content = (
+          retrieval_result.model_dump_json()
+        )
 
-      # 2. Let Storage Specialist analyze and handle storage needs
-      storage_message = Message(
-        content=message.content,
-        metadata={
-          "content": message.content,
-          "retrieved_content": retrieval_result.content,
-        },
-      )
+        await step.show_response(
+          Response(
+            content=f"```json\n{retrieval_result_content}\n```",
+            metadata=message.metadata,
+          )
+        )
 
-      logger.debug(
-        f"Storage message created: {storage_message}"
-      )
+        yield Response(
+          content=retrieval_result_content,
+          metadata={
+            "type": RetrieveKnowledgeResult.__name__
+          },
+        )
 
+    # 2. Let Storage Specialist analyze and handle storage needs
+    storage_message = Message(
+      content=message.content,
+      metadata={
+        "content": message.content,
+        "retrieved_content": retrieval_result.content
+        if retrieval_result
+        else None,
+      },
+    )
+
+    logger.debug(
+      f"Storage message created: {storage_message}"
+    )
+
+    async with ProcessingStep(
+      name="Semantic Storage agent",
+      step_type="run",
+    ) as step:
       async for (
         response
       ) in self.storage_specialist.process(
@@ -210,8 +234,19 @@ class SemanticMemoryCoordinator(BaseAgent):
             response.content
           )
         )
+        storage_result_content = (
+          storage_result.model_dump_json()
+        )
+
+        await step.show_response(
+          Response(
+            content=f"```json\n{storage_result_content}\n```",
+            metadata=message.metadata,
+          )
+        )
+
         yield Response(
-          content=storage_result.model_dump_json(),
+          content=storage_result_content,
           metadata={
             "type": StoreKnowledgeResult.__name__
           },

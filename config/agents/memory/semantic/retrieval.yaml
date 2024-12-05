@@ -7,7 +7,7 @@ system_prompt: |
 
   Consider the existing context and the user's current state:
   ```markdown
-  {{current_workspace}}
+  {{ current_workspace }}
   ```
 
   For each retrieval request, analyze:

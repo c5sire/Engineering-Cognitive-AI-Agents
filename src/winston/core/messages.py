@@ -125,20 +125,10 @@ class Message(BaseModel):
     )
 
 
-class ResponseType(StrEnum):
-  """Types of responses in the system."""
-
-  USER = "user"  # Final output for user
-  INTERNAL = "internal"  # Internal processing steps
-
-
 class Response(BaseModel):
   """Enhanced response model."""
 
   content: str
-  response_type: ResponseType = (
-    ResponseType.USER
-  )  # Default to USER for backward compatibility
   step_name: str | None = (
     None  # For grouping related steps and nesting
   )

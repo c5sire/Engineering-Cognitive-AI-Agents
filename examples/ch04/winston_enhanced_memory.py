@@ -15,6 +15,7 @@ from winston.core.messages import (
 )
 from winston.core.paths import AgentPaths
 from winston.core.protocols import Agent
+from winston.core.steps import ProcessingStep
 from winston.core.system import AgentSystem, System
 from winston.ui.chainlit_app import AgentChat
 
@@ -51,25 +52,26 @@ class EnhancedMemoryWinston(BaseAgent):
     )
 
     # Delegate to memory coordinator
-    updated_workspace = None
-    async for (
-      response
-    ) in self.system.invoke_conversation(
-      "memory_coordinator",
-      coordinator_message.content,
-      context=coordinator_message.metadata,
-    ):
-      if response.metadata.get("streaming"):
-        yield response
-        continue
-      logger.trace(
-        f"Memory coordinator response: {response}"
-      )
-      updated_workspace = response.content
-
-    message.metadata["current_workspace"] = (
-      updated_workspace
-    )
+    async with ProcessingStep(
+      name="Memory Coordinator agent", step_type="run"
+    ) as step:
+      async for (
+        response
+      ) in self.system.invoke_conversation(
+        "memory_coordinator",
+        coordinator_message.content,
+        context=coordinator_message.metadata,
+      ):
+        if response.metadata.get("streaming"):
+          yield response
+          continue
+        logger.trace(
+          f"Memory coordinator response: {response}"
+        )
+        updated_workspace = response.content
+        message.metadata["current_workspace"] = (
+          updated_workspace
+        )
 
     async for (
       response

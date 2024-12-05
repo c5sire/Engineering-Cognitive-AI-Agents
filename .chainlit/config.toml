@@ -60,7 +60,7 @@ name = "Winston"
 description = "Winston is a multi-agent system for cognitive AI research."
 
 # Large size content are by default collapsed for a cleaner ui
-default_collapse_content = false
+default_collapse_content = true
 
 # The default value for the expand messages settings.
 default_expand_messages = true

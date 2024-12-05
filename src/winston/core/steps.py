@@ -1,13 +1,13 @@
 """Step management utilities for Winston's processing pipeline."""
 
 import json
+from contextvars import ContextVar, Token
 from typing import Literal
 
 import chainlit as cl
 
 from winston.core.messages import (
   Response,
-  ResponseType,
 )
 
 StepType = Literal[
@@ -19,6 +19,13 @@ StepType = Literal[
   "rerank",
 ]
 
+current_step: ContextVar["ProcessingStep | None"] = (
+  ContextVar(
+    "current_step",
+    default=None,
+  )
+)
+
 
 class ProcessingStep:
   """Context manager for handling processing steps."""
@@ -28,7 +35,7 @@ class ProcessingStep:
     name: str,
     step_type: StepType,
     show_input: bool = True,
-  ):
+  ) -> None:
     """
     Initialize a processing step.
 
@@ -38,21 +45,31 @@ class ProcessingStep:
         Name of the step
     step_type : StepType
         Type of the step (must be one of Chainlit's supported types)
-    show_input : bool, optional
-        Whether to show input in UI, by default True
+    show_input : bool
+        Whether to show input in UI
     """
     self.name = name
     self.step_type = step_type
     self.show_input = show_input
     self.cl_step: cl.Step | None = None
+    self.token: Token | None = None
 
   async def __aenter__(self) -> "ProcessingStep":
-    """Enter the context manager."""
+    """
+    Enter the context manager.
+
+    Returns
+    -------
+    ProcessingStep
+        The processing step instance
+    """
     self.cl_step = cl.Step(
       name=self.name,
       type=self.step_type,
       show_input=self.show_input,
     )
+
+    self.token = current_step.set(self)
     await self.cl_step.__aenter__()
     return self
 
@@ -65,10 +82,15 @@ class ProcessingStep:
     """Exit the context manager."""
     if self.cl_step:
       await self.cl_step.__aexit__(
-        exc_type, exc_val, exc_tb
+        exc_type,
+        exc_val,
+        exc_tb,
       )
 
-  async def stream_response(
+    if self.token:
+      current_step.reset(self.token)
+
+  async def show_response(
     self, response: Response
   ) -> None:
     """
@@ -82,13 +104,15 @@ class ProcessingStep:
     if not self.cl_step:
       return
 
-    if response.response_type == ResponseType.STEP:
-      self.cl_step.input = json.dumps(
-        response.metadata, indent=2
-      )
-      if response.content:
-        self.cl_step.output = response.content
-    elif response.streaming and response.content:
+    if response.metadata:
+      self.cl_step.input = (
+        "```json\n"
+        + json.dumps(
+          response.metadata, indent=2, default=str
+        )
+        + "\n```"
+      ).strip()
+    if response.streaming and response.content:
       await self.cl_step.stream_token(response.content)
     elif response.content:
       self.cl_step.output = response.content
