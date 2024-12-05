@@ -45,7 +45,7 @@ class ReasoningAgent(BaseAgent):
       {
         "message": message.content,
         "private_workspace": private_workspace,
-        "shared_context": shared_workspace,
+        "shared_workspace": shared_workspace,
       }
     )
 

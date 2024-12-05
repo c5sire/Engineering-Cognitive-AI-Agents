@@ -9,9 +9,9 @@ system_prompt: |
   Using your private context:
   {{ private_workspace }}
 
-  {% if shared_context %}
+  {% if shared_workspace %}
   And considering the shared context:
-  {{ shared_context }}
+  {{ shared_workspace }}
   {% endif %}
 
   Generate initial thoughts focusing on:

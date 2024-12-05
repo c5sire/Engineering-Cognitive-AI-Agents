@@ -29,7 +29,7 @@ class MemoryAgent(BaseAgent):
     response_prompt = self.config.render_system_prompt(
       {
         "private_workspace": private_workspace,
-        "shared_context": shared_workspace,
+        "shared_workspace": shared_workspace,
         "message": message.content,
       }
     )
