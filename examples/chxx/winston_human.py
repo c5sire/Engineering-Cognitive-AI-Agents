@@ -58,7 +58,7 @@ class HumanWinston(BaseAgent):
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Memory Processing"},
+        metadata=message.metadata,
       )
     ):
       accumulated_content.append(response.content)
@@ -71,10 +71,7 @@ class HumanWinston(BaseAgent):
     await self._update_workspaces(
       Message(
         content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Memory Processing",
-        },
+        metadata=message.metadata,
       ),
     )
 

@@ -41,8 +41,8 @@ class AgentConfig(BaseModel):
   timeout: int = Field(
     default=60, description="Timeout in seconds"
   )
-  workspace_template: str = Field(
-    default="default",
+  workspace_template: str | None = Field(
+    default=None,
     description="Workspace template to use",
   )
   required_tool: str | None = Field(

@@ -3,6 +3,9 @@ from pathlib import Path
 from textwrap import dedent
 from typing import ClassVar, Union
 
+from jinja2 import Template
+from loguru import logger
+
 from winston.core.messages import Message
 from winston.core.protocols import Agent
 
@@ -48,15 +51,15 @@ Provide the updated workspace in a clear and structured markdown format, maintai
 
 (Note: realistic examples should include detailed content and integration reflecting the actual updates for clarity and completeness.)
 
-Message Type: {msg_type}
+Message Type: {{ msg_type }}
 Update Content:
 ```markdown
-{content_format}
+{{ content_format }}
 ```
 
 Current Workspace:
 ```markdown
-{workspace}
+{{ workspace }}
 ```
 """).strip()
 
@@ -76,6 +79,9 @@ class WorkspaceManager:
 
   def _initialize(self) -> None:
     """Initialize the workspace manager."""
+    logger.trace(
+      "Initializing new WorkspaceManager instance"
+    )
     self._workspaces: dict[Path, str] = {}
 
   def initialize_workspace(
@@ -85,23 +91,47 @@ class WorkspaceManager:
   ) -> None:
     """Initialize a workspace if it doesn't exist."""
     if not workspace_path.exists():
+      logger.info(
+        f"Creating new workspace at {workspace_path}"
+      )
       workspace_path.parent.mkdir(
         parents=True, exist_ok=True
       )
-      workspace_path.write_text(
-        content or DEFAULT_INITIAL_TEMPLATE
-      )
+      try:
+        workspace_path.write_text(
+          content or DEFAULT_INITIAL_TEMPLATE
+        )
+        logger.debug(
+          f"Workspace initialized successfully at {workspace_path}"
+        )
+      except Exception as e:
+        logger.exception(
+          f"Failed to create workspace at {workspace_path}: {e}"
+        )
+        raise
 
   def load_workspace(
     self,
     workspace_path: Path,
   ) -> str:
     """Load workspace content, initializing if needed."""
+    logger.debug(
+      f"Loading workspace from {workspace_path}"
+    )
     if workspace_path not in self._workspaces:
-      self.initialize_workspace(workspace_path)
-      self._workspaces[workspace_path] = (
-        workspace_path.read_text()
-      )
+      try:
+        self.initialize_workspace(workspace_path)
+        self._workspaces[workspace_path] = (
+          workspace_path.read_text()
+        )
+        logger.trace(
+          f"Workspace loaded and cached: {workspace_path}"
+        )
+      except Exception as e:
+        logger.exception(
+          f"Failed to load workspace {workspace_path}: {e}"
+        )
+        raise
     return self._workspaces[workspace_path]
 
   def save_workspace(
@@ -110,8 +140,20 @@ class WorkspaceManager:
     content: str,
   ) -> None:
     """Save workspace content."""
-    workspace_path.write_text(content)
-    self._workspaces[workspace_path] = content
+    logger.debug(
+      f"Saving workspace to {workspace_path}"
+    )
+    try:
+      workspace_path.write_text(content)
+      self._workspaces[workspace_path] = content
+      logger.trace(
+        f"Workspace saved successfully: {workspace_path}"
+      )
+    except Exception as e:
+      logger.exception(
+        f"Failed to save workspace {workspace_path}: {e}"
+      )
+      raise
 
   async def update_workspace(
     self,
@@ -119,56 +161,58 @@ class WorkspaceManager:
     message: Message,
     agent: Agent,
     update_template: str | None = None,
+    update_category: str | None = None,
   ) -> str:
-    """Update workspace with new interaction.
-
-    Parameters
-    ----------
-    workspace_path : Path
-        Path to the workspace to update
-    message : Message
-        The new message to process
-    agent : Agent
-        Agent to use for generating the update
-
-    Returns
-    -------
-    str
-        The updated workspace content
-    """
-    print(f"Updating workspace: {workspace_path}")
-    workspace = self.load_workspace(workspace_path)
-
-    # Base prompt template
-
-    # Dynamic content formatting based on message type
-    msg_type = message.metadata.get(
-      "type", "Interaction"
+    """Update workspace with new interaction."""
+    logger.info(
+      f"Updating workspace: {workspace_path}"
+    )
+    logger.debug(
+      f"Update category: {update_category}, Message: {message}"
     )
 
-    content_format = (
-      message.content
-      if msg_type != "Interaction"
-      else f"User: {message.content}"
-    )
+    try:
+      workspace = self.load_workspace(workspace_path)
 
-    update_prompt = dedent(
-      (
+      if update_category is None:
+        update_category = "Interaction"
+
+      content_format = (
+        message.content
+        if update_category != "Interaction"
+        else f"User: {message.content}"
+      )
+
+      template = Template(
         update_template or DEFAULT_UPDATE_TEMPLATE
-      ).format(
-        msg_type=msg_type.replace("_", " "),
+      )
+      update_prompt = template.render(
+        msg_type=update_category.replace("_", " "),
         content_format=content_format,
         workspace=workspace,
-      )
-    ).strip()
+      ).strip()
 
-    response = await agent.generate_response(
-      Message(
-        content=update_prompt,
-        metadata={"type": "Workspace Update"},
+      logger.trace(
+        f"Generated update prompt: {update_prompt}"
       )
-    )
-    self.save_workspace(
-      workspace_path, response.content
-    )
-    return response.content
+
+      response = await agent.generate_response(
+        Message(
+          content=update_prompt,
+          metadata=message.metadata,
+        )
+      )
+
+      self.save_workspace(
+        workspace_path, response.content
+      )
+      logger.debug(
+        "Workspace update completed successfully"
+      )
+      return response.content
+
+    except Exception as e:
+      logger.exception(
+        f"Failed to update workspace {workspace_path}: {e}"
+      )
+      raise

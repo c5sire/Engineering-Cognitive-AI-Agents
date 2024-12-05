@@ -18,5 +18,3 @@ system_prompt: |
   ```markdown
   {{ current_workspace }}
   ```
-temperature: 0.7
-stream: true

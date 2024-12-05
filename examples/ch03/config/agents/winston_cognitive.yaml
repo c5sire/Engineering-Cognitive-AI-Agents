@@ -9,5 +9,3 @@ system_prompt: |
   - Visual understanding
 
   Use these capabilities appropriately based on the user's needs.
-temperature: 0.7
-stream: true

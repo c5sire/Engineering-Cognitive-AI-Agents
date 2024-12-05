@@ -72,10 +72,7 @@ class PlanningAgent(BaseAgent):
     await self._update_workspaces(
       Message(
         content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Planning",
-        },
+        metadata=message.metadata,
       ),
     )
 
@@ -107,7 +104,7 @@ class PlanningAgent(BaseAgent):
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Private Planning"},
+        metadata=message.metadata,
       )
     ):
       yield response
@@ -142,7 +139,7 @@ class PlanningAgent(BaseAgent):
     ) in self.generate_streaming_response(
       Message(
         content=execution_prompt,
-        metadata={"type": "Private Execution Prep"},
+        metadata=message.metadata,
       )
     ):
       yield response

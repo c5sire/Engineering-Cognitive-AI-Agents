@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, cast
 
+import litellm
 from litellm import acompletion
 from litellm.types.completion import (
   ChatCompletionMessageParam,
@@ -33,6 +34,7 @@ from winston.core.vision import (
 from winston.core.workspace import WorkspaceManager
 
 # litellm.set_verbose = True
+litellm.drop_params = True
 
 
 @dataclass
@@ -130,6 +132,7 @@ class BaseAgent(Agent):
     message: Message,
     private_update_template: str | None = None,
     shared_update_template: str | None = None,
+    update_category: str | None = None,
   ) -> tuple[str, str | None]:
     """Update workspaces with new content."""
     workspace_manager = WorkspaceManager()
@@ -140,6 +143,7 @@ class BaseAgent(Agent):
         message,
         self,
         private_update_template,
+        update_category,
       )
     )
 
@@ -154,6 +158,7 @@ class BaseAgent(Agent):
           message,
           self,
           shared_update_template,
+          update_category,
         )
       )
     else:
