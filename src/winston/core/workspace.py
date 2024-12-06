@@ -10,15 +10,13 @@ from winston.core.messages import Message
 from winston.core.protocols import Agent
 
 DEFAULT_INITIAL_TEMPLATE = dedent("""
-# Cognitive Workspace
+# User Preferences
 
-## User Preferences
+[Record user habits, likes, dislikes, and stated preferences]
 
-## Recent Interactions
+# Relevant Context
 
-## Current Context
-
-## Working Memory
+[Store background information, relationships, and contextual details that don't fit above]
 """).strip()
 
 
@@ -83,13 +81,22 @@ class WorkspaceManager:
       "Initializing new WorkspaceManager instance"
     )
     self._workspaces: dict[Path, str] = {}
+    self._templates: dict[str, str] = {}
+    self._workspace_owners: dict[Path, str] = {}
 
   def initialize_workspace(
     self,
     workspace_path: Path,
     content: str | None = None,
+    template: str | None = None,
+    owner_id: str | None = None,
   ) -> None:
     """Initialize a workspace if it doesn't exist."""
+    if owner_id:
+      self._workspace_owners[workspace_path] = owner_id
+    if template and owner_id:
+      self._templates[owner_id] = template
+
     if not workspace_path.exists():
       logger.info(
         f"Creating new workspace at {workspace_path}"
@@ -99,7 +106,10 @@ class WorkspaceManager:
       )
       try:
         workspace_path.write_text(
-          content or DEFAULT_INITIAL_TEMPLATE
+          content
+          or self.get_workspace_template(
+            workspace_path
+          )
         )
         logger.debug(
           f"Workspace initialized successfully at {workspace_path}"
@@ -109,6 +119,25 @@ class WorkspaceManager:
           f"Failed to create workspace at {workspace_path}: {e}"
         )
         raise
+
+  def get_workspace_template(
+    self, workspace_path: Path
+  ) -> str:
+    """Get template for a workspace."""
+    owner_id = self._workspace_owners.get(
+      workspace_path
+    )
+    if owner_id:
+      return self._templates.get(
+        owner_id, DEFAULT_INITIAL_TEMPLATE
+      )
+    return DEFAULT_INITIAL_TEMPLATE
+
+  def get_workspace_owner(
+    self, workspace_path: Path
+  ) -> str | None:
+    """Get the owner ID for a workspace."""
+    return self._workspace_owners.get(workspace_path)
 
   def load_workspace(
     self,

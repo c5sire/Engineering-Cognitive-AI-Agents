@@ -250,20 +250,16 @@ class StorageSpecialist(BaseAgent):
     self._storage = KnowledgeStorage(storage_path)
     self._embeddings = EmbeddingStore(embedding_path)
 
-    storage_tool = Tool(
+    tool = Tool(
       name="manage_knowledge",
       description="Unified tool for managing knowledge storage and updates",
       handler=self._handle_storage_request,
       input_model=StorageRequest,
       output_model=StoreKnowledgeResult,
     )
-    logger.debug(
-      f"Registering storage tool: {storage_tool.name}"
-    )
-    self.system.register_tool(storage_tool)
-    self.system.grant_tool_access(
-      self.id, [storage_tool.name]
-    )
+    self.system.register_tool(tool)
+    self.system.grant_tool_access(self.id, [tool.name])
+
     logger.info(
       "StorageSpecialist initialization complete"
     )

@@ -86,7 +86,6 @@ from pydantic import BaseModel, Field
 
 from winston.core.agent import BaseAgent
 from winston.core.agent_config import AgentConfig
-from winston.core.messages import Response
 from winston.core.paths import AgentPaths
 from winston.core.system import AgentSystem
 from winston.core.tools import Tool
@@ -118,50 +117,25 @@ class EpisodeAnalyst(BaseAgent):
     logger.info("Initializing EpisodeAnalyst agent.")
 
     # Register the action tool
-    self.system.register_tool(
-      Tool(
-        name="report_episode_boundary",
-        description="Report episode boundary detection results",
-        handler=self._handle_boundary_report,
-        input_model=EpisodeBoundaryResult,
-        output_model=Response,
-      )
+    tool = Tool(
+      name="report_episode_boundary",
+      description="Report episode boundary detection results",
+      handler=self._handle_boundary_report,
+      input_model=EpisodeBoundaryResult,
+      output_model=EpisodeBoundaryResult,
     )
-
-    logger.debug(
-      "Registered tool: report_episode_boundary"
-    )
+    self.system.register_tool(tool)
 
     # Grant self access
-    self.system.grant_tool_access(
-      self.id, ["report_episode_boundary"]
-    )
+    self.system.grant_tool_access(self.id, [tool.name])
 
     logger.info(
-      "Granted tool access for report_episode_boundary."
+      "EpisodeAnalyst initialization complete"
     )
 
   async def _handle_boundary_report(
-    self, report: EpisodeBoundaryResult
-  ) -> Response:
+    self, result: EpisodeBoundaryResult
+  ) -> EpisodeBoundaryResult:
     """Handle the boundary detection report."""
-    logger.trace(f"Handling boundary report: {report}")
-
-    try:
-      response = Response(
-        content="Episode boundary analyzed",
-        metadata={
-          "is_new_episode": report.is_new_episode,
-          "preserve_context": report.preserve_context,
-        },
-      )
-      logger.info(
-        "Successfully analyzed episode boundary."
-      )
-      return response
-
-    except Exception as e:
-      logger.exception(
-        f"Error while handling boundary report: {e}"
-      )
-      raise
+    logger.trace(f"Handling boundary report: {result}")
+    return result

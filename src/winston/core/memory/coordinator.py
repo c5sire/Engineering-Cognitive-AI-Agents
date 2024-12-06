@@ -75,12 +75,7 @@ from winston.core.memory.episode_analyst import (
 )
 from winston.core.memory.semantic.coordinator import (
   SemanticMemoryCoordinator,
-)
-from winston.core.memory.semantic.retrieval import (
-  RetrieveKnowledgeResult,
-)
-from winston.core.memory.semantic.storage import (
-  StoreKnowledgeResult,
+  SemanticMemoryResult,
 )
 from winston.core.memory.working_memory import (
   WorkingMemorySpecialist,
@@ -183,48 +178,37 @@ class MemoryCoordinator(BaseAgent):
       async for (
         response
       ) in self.episode_analyst.process(message):
-        if response.metadata.get("streaming"):
-          yield response
-          continue
-        logger.trace(
-          f"Raw episode analysis obtained: {response}"
-        )
-        response_content = json.loads(response.content)
-        response_metadata = response_content.get(
-          "metadata"
-        )
-        if not response_metadata:
-          logger.error("Response metadata not found")
-          raise ValueError(
-            "Response metadata required"
+        if not response.metadata.get("streaming"):
+          logger.trace(
+            f"Raw episode analysis obtained: {response}"
           )
-        episode_analysis = (
-          EpisodeBoundaryResult.model_validate(
-            response_metadata
+          episode_analysis = (
+            EpisodeBoundaryResult.model_validate_json(
+              response.content
+            )
           )
-        )
-        # Update the step
-        await step.show_response(
-          Response(
-            content=dedent(f"""
+          # Update the step
+          await step.show_response(
+            Response(
+              content=dedent(f"""
 ```markdown
 # Episode Analysis:
 
 - New Episode: {episode_analysis.is_new_episode}
 - Preserve Context: {json.dumps(episode_analysis.preserve_context, indent=2)}
 ```""").strip(),
-            metadata=message.metadata,
+              metadata=message.metadata,
+            )
           )
-        )
 
-        # Add the episode analysis to the message metadata,
-        # making it available to downstream agents
-        message.metadata["is_new_episode"] = (
-          episode_analysis.is_new_episode
-        )
-        message.metadata["preserve_context"] = (
-          episode_analysis.preserve_context
-        )
+          # Add the episode analysis to the message metadata,
+          # making it available to downstream agents
+          message.metadata["is_new_episode"] = (
+            episode_analysis.is_new_episode
+          )
+          message.metadata["preserve_context"] = (
+            episode_analysis.preserve_context
+          )
 
     logger.info(
       f"Episode analysis completed: {episode_analysis}"
@@ -235,8 +219,7 @@ class MemoryCoordinator(BaseAgent):
     )
 
     # Let semantic memory coordinator handle knowledge operations
-    retrieval_result = None
-    storage_result = None
+    semantic_result = None
     async with ProcessingStep(
       name="Semantic Memory Coordinator agent",
       step_type="run",
@@ -244,64 +227,87 @@ class MemoryCoordinator(BaseAgent):
       async for (
         response
       ) in self.semantic_memory.process(message):
-        if response.metadata.get("streaming"):
-          yield response
-          continue
-        logger.trace(
-          f"Raw semantic results obtained: {response}"
-        )
-
-        # There are two types of responses from the semantic memory coordinator:
-        # - RetrieveKnowledgeResult
-        # - StoreKnowledgeResult
-        response_type = response.metadata.get("type")
-        if not response_type:
-          logger.error(
-            "Response type not found in metadata"
-          )
-          raise ValueError("Response type required")
-
-        if (
-          response_type
-          == RetrieveKnowledgeResult.__name__
-        ):
+        if not response.metadata.get("streaming"):
           logger.trace(
-            f"Retrieval result obtained: {response}"
+            f"Raw semantic results obtained: {response}"
           )
-          retrieval_result = RetrieveKnowledgeResult.model_validate_json(
-            response.content
-          )
-          # Add the retrieved context to the message metadata,
-          # making it available to downstream agents
-          message.metadata["retrieved_context"] = (
-            retrieval_result.model_dump_json()
-          )
-        elif (
-          response_type
-          == StoreKnowledgeResult.__name__
-        ):
-          logger.trace(
-            f"Storage result obtained: {response}"
-          )
-          storage_result = (
-            StoreKnowledgeResult.model_validate_json(
+
+          semantic_result = (
+            SemanticMemoryResult.model_validate_json(
               response.content
             )
           )
-          # Add the stored knowledge to the message metadata,
-          # making it available to downstream agents
-          message.metadata["stored_knowledge"] = (
-            storage_result.model_dump_json()
-          )
-        else:
-          logger.error(
-            f"Unknown response type: {response_type}"
-          )
-          raise ValueError(
-            f"Unknown response type: {response_type}"
+
+          # Add both retrieval and storage results to metadata
+          message.metadata["retrieved_context"] = {
+            "content": semantic_result.content,
+            "relevance": semantic_result.relevance,
+            "lower_relevance_results": semantic_result.lower_relevance_results,
+          }
+
+          if semantic_result.id:  # If storage occurred
+            message.metadata["stored_knowledge"] = {
+              "id": semantic_result.id,
+              "action": semantic_result.action,
+              "reason": semantic_result.reason,
+            }
+
+          # Show consolidated results in step
+          await step.show_response(
+            Response(
+              content=dedent(f"""
+```markdown
+# Semantic Memory Results:
+
+## Retrieved Context:
+- Content: {semantic_result.content if semantic_result.content else 'None'}
+- Relevance: {semantic_result.relevance if semantic_result.relevance else 'N/A'}
+- Additional Results: {len(semantic_result.lower_relevance_results) if semantic_result.lower_relevance_results else 0}
+
+## Storage Results:
+- ID: {semantic_result.id if semantic_result.id else 'No storage'}
+- Action: {semantic_result.action if semantic_result.action else 'None'}
+- Reason: {semantic_result.reason if semantic_result.reason else 'N/A'}
+```""").strip(),
+              metadata=message.metadata,
+            )
           )
 
     # Finally, let working memory specialist update workspace
+
+    # if this is a new episode, get fresh template
+
+    # Use a new message that only has the latest user message and metadata needed.
+    # This ensures the LLM doesn't get distracted by the conversation history.
+    metadata = {
+      "is_new_episode": message.metadata.get(
+        "is_new_episode"
+      ),
+    }
+    if message.metadata.get("is_new_episode"):
+      metadata["current_workspace"] = (
+        workspace_manager.get_workspace_template(
+          message.metadata["shared_workspace"],
+        )
+      )
+    else:
+      metadata["current_workspace"] = message.metadata[
+        "current_workspace"
+      ]
+    if message.metadata.get("preserve_context"):
+      metadata["preserve_context"] = (
+        message.metadata.get("preserve_context")
+      )
+    if message.metadata.get("retrieved_context"):
+      metadata["retrieved_context"] = (
+        message.metadata.get("retrieved_context")
+      )
+
+    working_memory_message = Message(
+      content=message.content,
+      metadata=metadata,
+    )
+
     working_memory_result = None
     async with ProcessingStep(
       name="Working Memory agent",
@@ -309,24 +315,24 @@ class MemoryCoordinator(BaseAgent):
     ) as step:
       async for (
         response
-      ) in self.working_memory.process(message):
-        if response.metadata.get("streaming"):
-          yield response
-          continue
-        logger.trace(
-          f"Working memory results obtained: {response}"
-        )
-        working_memory_result = (
-          WorkspaceUpdateResult.model_validate_json(
-            response.content
+      ) in self.working_memory.process(
+        working_memory_message
+      ):
+        if not response.metadata.get("streaming"):
+          logger.trace(
+            f"Working memory results obtained: {response}"
           )
-        )
-        await step.show_response(
-          Response(
-            content=f"```markdown\n{working_memory_result.updated_workspace}\n```",
-            metadata=message.metadata,
+          working_memory_result = (
+            WorkspaceUpdateResult.model_validate_json(
+              response.content
+            )
           )
-        )
+          await step.show_response(
+            Response(
+              content=f"```markdown\n{working_memory_result.updated_workspace}\n```",
+              metadata=message.metadata,
+            )
+          )
 
     # Update the actual workspace file
     logger.info("Saving updated content to workspace.")

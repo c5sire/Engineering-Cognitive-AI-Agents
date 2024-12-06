@@ -26,5 +26,3 @@ system_prompt: |
   Always explain your query formulation rationale when using the retrieve_knowledge tool.
   Focus on creating queries that will find semantically similar content through embedding-based search.
 required_tool: retrieve_knowledge
-temperature: 0.7
-stream: true

@@ -1,0 +1,19 @@
+---
+config:
+  layout: elk
+---
+graph TD
+    I[Input Query] -->|Analyze| RS[Retrieval Specialist]
+    RS -->|Extract| KC[Key Concepts]
+    RS -->|Identify| RT[Related Terms]
+
+    subgraph "Search Process"
+        KC --> SQ[Search Query]
+        RT --> SQ
+        SQ -->|Vector Search| ES[Embedding Store]
+        ES -->|Find Similar| M[Matches]
+        M -->|Load| KS[Knowledge Store]
+    end
+
+    KS -->|Best Match| R[Primary Result]
+    KS -->|Additional| LR[Lower Relevance Results]

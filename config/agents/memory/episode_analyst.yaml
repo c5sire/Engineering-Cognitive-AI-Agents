@@ -38,6 +38,3 @@ system_prompt: |
   - New episode (true) - completely different topic
   - Preserve: none - full context switch
 required_tool: report_episode_boundary
-temperature: 0.7
-stream: true
-timeout: 30.0

@@ -1,0 +1,24 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+ subgraph subGraph0["Analysis Process"]
+        TS["Topic Analysis"]
+        I["Input Message"]
+        CC["Context Analysis"]
+        TP["Temporal Analysis"]
+        D["Decision Making"]
+  end
+    EA["Episode Analyst"] -- Analyzes --> I
+    EA -- Considers --> C["Current Context"]
+    I -- Topic Shift? --> TS
+    I -- Context Change? --> CC
+    I -- Time Pattern? --> TP
+    TS --> D
+    CC --> D
+    TP --> D
+    D -- Determines --> NE["New Episode?"]
+    D -- Identifies --> PC["Preserve Context"]
+    NE -- Signals --> MC["Memory Coordinator"]
+    PC -- Informs --> WM["Working Memory"]

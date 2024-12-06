@@ -79,14 +79,17 @@ storage and retrieval.
 from typing import AsyncIterator
 
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from winston.core.agent import BaseAgent
 from winston.core.agent_config import AgentConfig
 from winston.core.memory.semantic.retrieval import (
+  KnowledgeItem,
   RetrievalSpecialist,
   RetrieveKnowledgeResult,
 )
 from winston.core.memory.semantic.storage import (
+  KnowledgeActionType,
   StorageSpecialist,
   StoreKnowledgeResult,
 )
@@ -94,6 +97,39 @@ from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
 from winston.core.steps import ProcessingStep
 from winston.core.system import AgentSystem
+
+
+class SemanticMemoryResult(BaseModel):
+  """Consolidated result from semantic memory operations."""
+
+  # From RetrieveKnowledgeResult
+  content: str | None = Field(
+    default=None,
+    description="The retrieved knowledge content",
+  )
+  relevance: float | None = Field(
+    default=None,
+    description="Relevance score for retrieved items",
+  )
+  lower_relevance_results: (
+    list[KnowledgeItem] | None
+  ) = Field(
+    default=None,
+    description="List of lower relevance knowledge items",
+  )
+
+  # From StoreKnowledgeResult
+  id: str | None = Field(
+    default=None,
+    description="ID of stored/updated knowledge",
+  )
+  action: KnowledgeActionType | None = Field(
+    default=None, description="Type of action taken"
+  )
+  reason: str | None = Field(
+    default=None,
+    description="Explanation for the action taken",
+  )
 
 
 class SemanticMemoryCoordinator(BaseAgent):
@@ -155,15 +191,6 @@ class SemanticMemoryCoordinator(BaseAgent):
     )
 
     # 1. Find relevant knowledge
-    retrieval_message = Message(
-      content=message.content,
-      metadata=message.metadata,  # Pass through any filters/context
-    )
-
-    logger.trace(
-      f"Retrieval message created: {retrieval_message}"
-    )
-
     retrieval_result = None
     async with ProcessingStep(
       name="Semantic Retrieval agent",
@@ -171,42 +198,29 @@ class SemanticMemoryCoordinator(BaseAgent):
     ) as step:
       async for (
         response
-      ) in self.retrieval_specialist.process(
-        retrieval_message
-      ):
-        if response.metadata.get("streaming"):
-          yield response
-          continue
-        logger.debug(f"Retrieval response: {response}")
-        retrieval_result = (
-          RetrieveKnowledgeResult.model_validate_json(
+      ) in self.retrieval_specialist.process(message):
+        if not response.metadata.get("streaming"):
+          logger.debug(
+            f"Retrieval response: {response}"
+          )
+          retrieval_result = RetrieveKnowledgeResult.model_validate_json(
             response.content
           )
-        )
-        retrieval_result_content = (
-          retrieval_result.model_dump_json()
-        )
 
-        await step.show_response(
-          Response(
-            content=f"```json\n{retrieval_result_content}\n```",
-            metadata=message.metadata,
+          await step.show_response(
+            Response(
+              content=f"```json\n{retrieval_result.model_dump_json()}\n```",
+              metadata=message.metadata,
+            )
           )
-        )
-
-        yield Response(
-          content=retrieval_result_content,
-          metadata={
-            "type": RetrieveKnowledgeResult.__name__
-          },
-        )
 
     # 2. Let Storage Specialist analyze and handle storage needs
     storage_message = Message(
       content=message.content,
       metadata={
+        **message.metadata,
         "content": message.content,
-        "retrieved_content": retrieval_result.content
+        "retrieved_content": retrieval_result.model_dump_json()
         if retrieval_result
         else None,
       },
@@ -216,6 +230,7 @@ class SemanticMemoryCoordinator(BaseAgent):
       f"Storage message created: {storage_message}"
     )
 
+    storage_result = None
     async with ProcessingStep(
       name="Semantic Storage agent",
       step_type="run",
@@ -225,29 +240,43 @@ class SemanticMemoryCoordinator(BaseAgent):
       ) in self.storage_specialist.process(
         storage_message
       ):
-        if response.metadata.get("streaming"):
-          yield response
-          continue
-        logger.debug(f"Storage response: {response}")
-        storage_result = (
-          StoreKnowledgeResult.model_validate_json(
-            response.content
+        if not response.metadata.get("streaming"):
+          logger.debug(f"Storage response: {response}")
+          storage_result = (
+            StoreKnowledgeResult.model_validate_json(
+              response.content
+            )
           )
-        )
-        storage_result_content = (
-          storage_result.model_dump_json()
-        )
 
-        await step.show_response(
-          Response(
-            content=f"```json\n{storage_result_content}\n```",
-            metadata=message.metadata,
+          await step.show_response(
+            Response(
+              content=f"```json\n{storage_result.model_dump_json()}\n```",
+              metadata=message.metadata,
+            )
           )
-        )
 
-        yield Response(
-          content=storage_result_content,
-          metadata={
-            "type": StoreKnowledgeResult.__name__
-          },
-        )
+    # 3. Yield the consolidated result
+    semantic_result = SemanticMemoryResult(
+      content=retrieval_result.content
+      if retrieval_result
+      else None,
+      relevance=retrieval_result.relevance
+      if retrieval_result
+      else None,
+      lower_relevance_results=(
+        retrieval_result.lower_relevance_results
+        if retrieval_result
+        else None
+      ),
+      id=storage_result.id if storage_result else None,
+      action=storage_result.action
+      if storage_result
+      else None,
+      reason=storage_result.reason
+      if storage_result
+      else "No storage operation performed",
+    )
+
+    yield Response(
+      content=semantic_result.model_dump_json(),
+    )

@@ -151,7 +151,7 @@ from winston.core.system import AgentSystem
 from winston.core.tools import Tool
 
 
-class WorkspaceUpdateRequest(BaseModel):
+class WorkspaceUpdateResult(BaseModel):
   """Parameters for workspace update."""
 
   updated_workspace: str = Field(
@@ -160,10 +160,6 @@ class WorkspaceUpdateRequest(BaseModel):
   rationale: str = Field(
     description="Rationale for the updates you made to the workspace"
   )
-
-
-class WorkspaceUpdateResult(WorkspaceUpdateRequest):
-  """Response to a workspace update request."""
 
 
 class WorkingMemorySpecialist(BaseAgent):
@@ -181,34 +177,28 @@ class WorkingMemorySpecialist(BaseAgent):
       "Initializing WorkingMemorySpecialist."
     )
     # Register the update tool
-    self.system.register_tool(
-      Tool(
-        name="update_workspace",
-        description="Update workspace content while maintaining context",
-        handler=self._handle_workspace_update,
-        input_model=WorkspaceUpdateRequest,
-        output_model=WorkspaceUpdateResult,
-      )
+    tool = Tool(
+      name="update_workspace",
+      description="Update workspace content while maintaining context",
+      handler=self._handle_workspace_update,
+      input_model=WorkspaceUpdateResult,
+      output_model=WorkspaceUpdateResult,
     )
+    self.system.register_tool(tool)
 
-    logger.debug("Registered update_workspace tool.")
     # Grant self access
-    self.system.grant_tool_access(
-      self.id, ["update_workspace"]
-    )
+    self.system.grant_tool_access(self.id, [tool.name])
+
     logger.info(
-      "Granted tool access for update_workspace."
+      "WorkingMemorySpecialist initialization complete"
     )
 
   async def _handle_workspace_update(
-    self, request: WorkspaceUpdateRequest
+    self, result: WorkspaceUpdateResult
   ) -> WorkspaceUpdateResult:
     """Handle workspace update request."""
 
     logger.trace(
-      f"Received workspace update request: {request}"
+      f"Received workspace update: {result}"
     )
-    return WorkspaceUpdateResult(
-      updated_workspace=request.updated_workspace,
-      rationale=request.rationale,
-    )
+    return result

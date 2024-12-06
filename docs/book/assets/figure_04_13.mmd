@@ -1,0 +1,36 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+ subgraph subGraph0["Input Analysis"]
+        RA["Relevance Analysis"]
+        NI["New Information"]
+        EC["Existing Context"]
+        RC["Retrieved Context"]
+  end
+ subgraph subGraph1["Workspace Organization"]
+        CE["Current Episode"]
+        UM["User Model"]
+        TP["Temporal Patterns"]
+        CW["Context Web"]
+        WA["Working Analysis"]
+  end
+ subgraph subGraph2["Integration Process"]
+        SI["Structured Integration"]
+        UW["Updated Workspace"]
+  end
+    NI -- Analyze --> RA
+    EC -- Consider --> RA
+    RC -- Integrate --> RA
+    RA -- Updates --> CE
+    RA -- Refines --> UM
+    RA -- Identifies --> TP
+    RA -- Maintains --> CW
+    RA -- Develops --> WA
+    CE --> SI
+    UM --> SI
+    TP --> SI
+    CW --> SI
+    WA --> SI
+    SI -- Generates --> UW

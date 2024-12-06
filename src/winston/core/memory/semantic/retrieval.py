@@ -169,25 +169,30 @@ class RetrievalSpecialist(BaseAgent):
     paths: AgentPaths,
   ) -> None:
     super().__init__(system, config, paths)
+    logger.info(
+      f"Initializing RetrievalSpecialist {self.id}"
+    )
+
     storage_path = paths.workspaces / "knowledge"
     embedding_path = paths.workspaces / "embeddings"
     self._storage = KnowledgeStorage(storage_path)
     self._embeddings = EmbeddingStore(embedding_path)
 
     # Register the retrieval tool
-    self.system.register_tool(
-      Tool(
-        name="retrieve_knowledge",
-        description="Find relevant knowledge using semantic search",
-        handler=self._handle_retrieve_knowledge,
-        input_model=RetrieveKnowledgeRequest,
-        output_model=RetrieveKnowledgeResult,
-      )
+    tool = Tool(
+      name="retrieve_knowledge",
+      description="Find relevant knowledge using semantic search",
+      handler=self._handle_retrieve_knowledge,
+      input_model=RetrieveKnowledgeRequest,
+      output_model=RetrieveKnowledgeResult,
     )
+    self.system.register_tool(tool)
 
     # Grant self access
-    self.system.grant_tool_access(
-      self.id, ["retrieve_knowledge"]
+    self.system.grant_tool_access(self.id, [tool.name])
+
+    logger.info(
+      "RetrievalSpecialist initialization complete"
     )
 
   async def _handle_retrieve_knowledge(

@@ -55,5 +55,3 @@ system_prompt: |
   - Changes over time should preserve history
   - Corrections should resolve conflicts clearly
 required_tool: manage_knowledge
-temperature: 0.7
-stream: true

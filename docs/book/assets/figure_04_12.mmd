@@ -1,0 +1,37 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+ subgraph subGraph0["Analysis Process"]
+        IT["Information Type"]
+        I["Input Information"]
+        TC["Temporal Context"]
+        CR["Conflict Resolution"]
+        AT["Action Type"]
+        SA["Storage Action"]
+  end
+ subgraph subGraph1["Storage Actions"]
+        KS["Knowledge Store"]
+        NK["Create Entry"]
+        ES["Embedding Store"]
+        HT["History Tracking"]
+        UP["Update Entry"]
+  end
+    SS["Storage Specialist"] -- Analyzes --> I
+    SS -- Considers --> EK["Existing Knowledge"]
+    I -- Type? --> IT
+    I -- Changes? --> TC
+    I -- Conflicts? --> CR
+    IT -- Categorize --> AT
+    TC -- Evaluate --> AT
+    CR -- Resolve --> AT
+    AT -- Determines --> SA
+    SA -- No Storage --> NS["Skip"]
+    SA -- New Knowledge --> NK
+    SA -- Update --> UP
+    NK -- Store --> KS
+    NK -- Index --> ES
+    UP -- Archive Old --> HT
+    UP -- Update --> KS
+    UP -- Reindex --> ES

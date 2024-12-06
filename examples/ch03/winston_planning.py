@@ -102,10 +102,8 @@ class PlanningAgent(BaseAgent):
   ) -> AsyncIterator[Response]:
     """Prepare for plan execution privately."""
 
-    print(f"Executing step: {message.content}")
-
     execution_prompt = Template("""
-    Regarding execution request:
+    Regardingthe plan execution request:
     {{ message.content }}
 
     Review private execution context:
@@ -116,10 +114,12 @@ class PlanningAgent(BaseAgent):
     {{ shared_workspace }}
     {% endif %}
 
-    Prepare execution by:
-    1. Identifying relevant plan steps
+    Simulate execution of the plan by:
+    1. Identifying the next relevant plan step
     2. Checking prerequisites
     3. Noting potential issues
+    4. Simulating outcomes and side-effects
+    5. Indicate when plan execution is complete (i.e., no more steps are needed)
     """).render(
       message=message,
       private_workspace=private_workspace,

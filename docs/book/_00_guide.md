@@ -199,6 +199,25 @@ System learning and development approach should:
 
 ---
 
+Part 1: Core Architecture
+Chapter 1: Foundations of Cognitive AI Agents
+Chapter 2: Building Your First Conversational Agent
+Chapter 3: Cognitive Foundations
+
+Part 2: Enhanced Cognition
+Chapter 4: Memory Systems & Knowledge Management
+Chapter 5: Reasoning & Analysis
+Chapter 6: Planning & Problem-Solving
+
+Part 3: Expert Cognition
+Chapter 7: Learning & Adaptation
+Chapter 8: Meta-Cognition & Self-Improvement
+Chapter 9: Complex Problem Solving
+
+Chapter 10: Future Horizons
+
+---
+
 ## **Implementation-Focused Benefits**
 
 1. **Consistency**: Consistent architectural principles simplify scaling.

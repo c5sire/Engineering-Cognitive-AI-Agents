@@ -28,5 +28,3 @@ system_prompt: |
   1. "I drink coffee in the morning" -> Store: morning routine, beverage preference
   2. "I've switched to tea" -> Store: preference change, maintain routine context
   3. "What do I usually drink?" -> Retrieve: beverage preferences, time patterns
-temperature: 0.7
-stream: true
