@@ -219,7 +219,7 @@ class AgentSystem(System):
     agent_id: str,
     function_name: str,
     args: dict[str, Any],
-  ) -> Response:
+  ) -> AsyncIterator[Response]:
     """
     Handle function call pattern.
 
@@ -244,6 +244,7 @@ class AgentSystem(System):
     RuntimeError
         If no response is received.
     """
+    """Directly execute the function."""
     agent_tools = self.get_agent_tools(agent_id)
     if function_name not in agent_tools:
       raise ValueError(
@@ -251,22 +252,21 @@ class AgentSystem(System):
       )
 
     tool = agent_tools[function_name]
-    message = Message(
-      content={
-        "function": function_name,
-        "args": args,
-      },
+
+    # Validate and execute the tool directly
+    validated_args = tool.input_model.model_validate(
+      args
+    )
+    result = await tool.handler(validated_args)
+
+    yield Response(
+      content=result.model_dump_json(),
       metadata={
-        "pattern": MessagePattern.FUNCTION,
-        "schema": tool.parameters,
+        "tool_call": True,
+        "tool_name": function_name,
+        "tool_args": args,
       },
     )
-
-    async for response in self.route_message(
-      agent_id, message
-    ):
-      return response
-    raise RuntimeError("No response received")
 
   #
   # Event handling

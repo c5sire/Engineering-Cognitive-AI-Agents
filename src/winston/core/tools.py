@@ -131,10 +131,7 @@ class ToolManager:
       )
 
     except Exception as e:
-      logger.error(
-        f"Tool execution error: {str(e)}",
-        exc_info=True,
-      )
+      logger.exception(e)
       return Response(
         content=f"Error executing function: {str(e)}",
         metadata={"error": True},

@@ -1,0 +1,14 @@
+---
+config:
+---
+graph TD
+    MC[Memory Coordinator] -->|Request Analysis| EA[Episode Analyst]
+    EA -->|Episode Status| MC
+    MC -->|Request Operations| SMC[Semantic Memory Coordinator]
+    SMC -->|Retrieval| RS[Retrieval Specialist]
+    SMC -->|Storage| SS[Storage Specialist]
+    RS -->|Context| SMC
+    SS -->|Updates| SMC
+    SMC -->|Retrieved Context + New Facts| MC
+    MC -->|Update Request| WMS[Working Memory Specialist]
+    WMS -->|Updated State| MC

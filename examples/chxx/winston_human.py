@@ -26,9 +26,9 @@ class HumanWinston(BaseAgent):
       self._get_workspaces(message)
     )
 
-    shared_context = ""
+    shared_workspace = ""
     if shared_workspace:
-      shared_context = f"""
+      shared_workspace = f"""
       And considering the shared context:
       {shared_workspace}
       """
@@ -41,7 +41,7 @@ class HumanWinston(BaseAgent):
     Using your private context:
     {private_workspace}
 
-    {shared_context}
+    {shared_workspace}
 
     Your goal is to create a complete cognitive behavioral profile of the user.  Engage in creative roleplay, ask hypothetical questions, make compelling claims designed to generate a response that allows you to gain insight on the user.  Carefully consider the the existing profile and prioritize traits you'd like to better understand.
 
@@ -58,7 +58,7 @@ class HumanWinston(BaseAgent):
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Memory Processing"},
+        metadata=message.metadata,
       )
     ):
       accumulated_content.append(response.content)
@@ -71,10 +71,7 @@ class HumanWinston(BaseAgent):
     await self._update_workspaces(
       Message(
         content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Memory Processing",
-        },
+        metadata=message.metadata,
       ),
     )
 

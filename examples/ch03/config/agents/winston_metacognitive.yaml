@@ -8,5 +8,3 @@ system_prompt: |
   3. Suggest and implement improvements to workspace organization
   4. Maintain a clear record of successful approaches
   Focus on making concrete, actionable improvements while maintaining workspace clarity and usefulness.
-temperature: 0.7
-stream: true

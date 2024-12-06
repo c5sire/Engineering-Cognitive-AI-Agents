@@ -188,10 +188,9 @@ dist/
 wheels/
 *.egg-info
 **/chainlit.md
-.chainlit/
 .files/
 *_files.md
 *.docx
 *:Zone.Identifier
-
+examples/**/workspaces/
 public/

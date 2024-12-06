@@ -1,0 +1,11 @@
+---
+config:
+  layout: elk
+---
+flowchart TD
+    STM["Short-term Memory"] --> WS["Workspace System"] & CH["Conversation History"]
+    WS --> PW["Private Workspaces<br>Agent-specific context"] & SW["Shared Workspaces<br>Multi-agent coordination"]
+    CH --> RT["Runtime History<br>Session context"] & PS["Long-term Memory"]
+    PW <-- Coordinates --> PS
+    SW <-- Coordinates --> PS
+    style PW stroke-dasharray: 5

@@ -26,41 +26,26 @@ class MemoryAgent(BaseAgent):
       self._get_workspaces(message)
     )
 
-    shared_context = ""
-    if shared_workspace:
-      shared_context = f"""
-      And considering the shared context:
-      {shared_workspace}
-      """
-
-    # Generate initial memory-focused response
-    response_prompt = f"""
-    Given this message:
-    {message.content}
-
-    Using your private context:
-    {private_workspace}
-
-    {shared_context}
-
-    Generate initial thoughts focusing on:
-    1. Personal recollections and experiences
-    2. Individual preferences and patterns
-    3. Key memory triggers and associations
-    """
+    response_prompt = self.config.render_system_prompt(
+      {
+        "private_workspace": private_workspace,
+        "shared_workspace": shared_workspace,
+        "message": message.content,
+      }
+    )
 
     # Stream responses and accumulate content
-    accumulated_content: list[str] = []
+    accumulated_content = ""
 
     async for (
       response
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Memory Processing"},
+        metadata=message.metadata,
       )
     ):
-      accumulated_content.append(response.content)
+      accumulated_content += response.content
       yield response
 
     # After processing, update workspace(s)
@@ -69,11 +54,8 @@ class MemoryAgent(BaseAgent):
 
     await self._update_workspaces(
       Message(
-        content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Memory Processing",
-        },
+        content=accumulated_content,
+        metadata=message.metadata,
       ),
     )
 

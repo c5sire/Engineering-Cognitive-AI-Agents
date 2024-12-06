@@ -23,77 +23,57 @@ class MultimodalAgent(BaseAgent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Process an incoming message."""
-    # Handle image analysis if present
-    if not self.can_handle(message):
-      return
-
     # Accumulate the complete vision response
-    accumulated_content: list[str] = []
-    async for (
-      response
-    ) in self.generate_streaming_vision_response(
-      message.content,
-      message.metadata["image_path"],
-    ):
-      accumulated_content.append(response.content)
-      yield response
+    visual_observation = ""
 
-    # Update workspace once with complete vision observation
-    if not accumulated_content:
-      return
+    # Handle image analysis if present
+    if self.can_handle(message):
+      async for (
+        response
+      ) in self.generate_streaming_vision_response(
+        "Generate a detailed description of the image.",
+        message.metadata["image_path"],
+      ):
+        visual_observation += response.content
+        yield response
 
+    # Get workspaces
     private_workspace, shared_workspace = (
       self._get_workspaces(message)
     )
 
-    shared_context = ""
-    if shared_workspace:
-      shared_context = f"""
-      And considering the shared context:
-      {shared_workspace}
-      """
+    # Render response prompt
+    response_prompt = self.config.render_system_prompt(
+      {
+        "message": message.content,
+        "private_workspace": private_workspace,
+        "shared_workspace": shared_workspace,
+        "visual_observation": visual_observation,
+      }
+    )
 
-    # Generate initial memory-focused response
-    response_prompt = f"""
-    Given this message:
-    {message.content}
-
-    And the visual observation:
-    {accumulated_content}
-
-    Using your private context:
-    {private_workspace}
-
-    {shared_context}
-
-    Generate initial thoughts focusing on:
-    1. Personal recollections and experiences
-    2. Individual preferences and patterns
-    3. Key memory triggers and associations
-    """
-
+    # Stream response
+    accumulated_content = ""
     async for (
       response
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Visual Observation"},
+        metadata=message.metadata,
       )
     ):
-      accumulated_content.append(response.content)
+      accumulated_content += response.content
       yield response
 
-    if not accumulated_content:
-      return
-
+    # Update workspaces
     await self._update_workspaces(
       Message(
-        content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Visual Observation",
-        },
+        content=accumulated_content,
+        metadata=message.metadata,
       ),
+      update_category="Visual observation"
+      if visual_observation
+      else None,
     )
 
 

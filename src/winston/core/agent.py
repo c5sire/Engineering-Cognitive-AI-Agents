@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, cast
 
+import litellm
 from litellm import acompletion
 from litellm.types.completion import (
   ChatCompletionMessageParam,
@@ -33,6 +34,7 @@ from winston.core.vision import (
 from winston.core.workspace import WorkspaceManager
 
 # litellm.set_verbose = True
+litellm.drop_params = True
 
 
 @dataclass
@@ -130,6 +132,7 @@ class BaseAgent(Agent):
     message: Message,
     private_update_template: str | None = None,
     shared_update_template: str | None = None,
+    update_category: str | None = None,
   ) -> tuple[str, str | None]:
     """Update workspaces with new content."""
     workspace_manager = WorkspaceManager()
@@ -140,6 +143,7 @@ class BaseAgent(Agent):
         message,
         self,
         private_update_template,
+        update_category,
       )
     )
 
@@ -154,6 +158,7 @@ class BaseAgent(Agent):
           message,
           self,
           shared_update_template,
+          update_category,
         )
       )
     else:
@@ -166,18 +171,47 @@ class BaseAgent(Agent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Handle conversation with LLM integration."""
+    logger.debug(
+      f"Handling conversation for message: {message}"
+    )
     messages = self._prepare_messages(message)
     tools = self.tool_manager.get_tools_schema()
+    logger.trace(f"Tools schema: {tools}")
+    tool_choice = None
+    if self.config.required_tool:
+      # Validate required tool exists in schema
+      available_tools = {
+        tool["function"]["name"]
+        for tool in tools
+        if tool.get("type") == "function"
+        and "function" in tool
+      }
+      if (
+        self.config.required_tool
+        not in available_tools
+      ):
+        raise ValueError(
+          f"Required tool '{self.config.required_tool}' not found in available tools: {available_tools}"
+        )
+
+      tool_choice = {
+        "type": "function",  # OpenAI format
+        "function": {
+          "name": self.config.required_tool
+        },
+      }
+    logger.trace(f"Tool choice: {tool_choice}")
     try:
+      logger.info("Starting LLM conversation...")
       response = await acompletion(
         model=self.config.model,
         messages=messages,
         temperature=self.config.temperature,
         stream=self.config.stream,
         tools=tools if tools else None,
+        tool_choice=tool_choice,
         timeout=self.config.timeout,
       )
-
       if self.config.stream:
         async for (
           chunk
@@ -191,7 +225,9 @@ class BaseAgent(Agent):
         )
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(
+        f"Exception occurred during conversation handling: {str(e)}"
+      )
       yield Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -203,10 +239,14 @@ class BaseAgent(Agent):
     """Prepare messages for LLM."""
     messages: list[ChatCompletionMessageParam] = []
 
-    if self.config.system_prompt:
+    if self.config.system_prompt_template:
+      # Render template with message metadata
+      system_prompt = self.config.render_system_prompt(
+        message.metadata
+      )
       messages.append(
         Message.system(
-          self.config.system_prompt
+          system_prompt
         ).to_chat_completion_message()
       )
 
@@ -238,11 +278,26 @@ class BaseAgent(Agent):
         chunk["choices"],
       )
       choices: StreamingChoices = choices_list[0]
-
+      # logger.trace(f"Choices: {choices}")
       # Handle tool calls completion
       if (
         hasattr(choices, "finish_reason")
-        and choices["finish_reason"] == "tool_calls"
+        and choices["finish_reason"]
+        in ("tool_calls", "stop")
+        and not tool_calls
+      ):
+        logger.debug(
+          "Stream completed with no tool calls present"
+        )
+        # Ensure tool calls are present if a tool choice was specified
+        if self.config.required_tool:
+          raise ValueError(
+            "Expected tool call in response but none found."
+          )
+      elif (
+        hasattr(choices, "finish_reason")
+        and choices["finish_reason"]
+        in ("tool_calls", "stop")
         and tool_calls
       ):
         results = []
@@ -315,6 +370,9 @@ class BaseAgent(Agent):
         )
 
     if accumulated_content:
+      logger.debug(
+        f"Accumulated content: {accumulated_content}"
+      )
       self.state.last_response = accumulated_content
 
   async def _process_single_response(
@@ -328,7 +386,17 @@ class BaseAgent(Agent):
     if not message:
       raise ValueError("No message in response")
 
-    if (
+    if not (
+      hasattr(message, "tool_calls")
+      and message.tool_calls
+    ):
+      logger.debug("No tool calls present in response")
+      # Ensure tool calls are present if a tool choice was specified
+      if self.config.required_tool:
+        raise ValueError(
+          "Expected tool call in response but none found."
+        )
+    elif (
       hasattr(message, "tool_calls")
       and message.tool_calls
     ):
@@ -394,8 +462,14 @@ class BaseAgent(Agent):
     self, message: Message
   ) -> Response:
     """Generate a non-streaming response from the LLM."""
+    logger.debug(
+      f"Generating response for message: {message}"
+    )
     messages = self._prepare_messages(message)
     try:
+      logger.info(
+        "Starting LLM response generation..."
+      )
       response = await acompletion(
         model=self.config.model,
         messages=messages,
@@ -405,19 +479,22 @@ class BaseAgent(Agent):
       )
       model_response = cast(ModelResponse, response)
       if not model_response.choices:
+        logger.error("No choices in response")
         raise ValueError("No choices in response")
 
       message = model_response.choices[0].message
       if not message:
+        logger.error("No message in response")
         raise ValueError("No message in response")
 
       if message.content:
         return Response(content=message.content)
       else:
+        logger.error("No content in message")
         raise ValueError("No content in message")
 
     except Exception as e:
-      logger.error("LLM error", exc_info=True)
+      logger.exception(f"LLM error occurred: {str(e)}")
       return Response(
         content=f"Error generating response: {str(e)}",
         metadata={"error": True},
@@ -554,3 +631,25 @@ class BaseAgent(Agent):
         content=f"Error processing image: {str(e)}",
         metadata={"error": True},
       )
+
+  async def process(
+    self,
+    message: Message,
+  ) -> AsyncIterator[Response]:
+    """Process messages to coordinate memory operations.
+
+    Parameters
+    ----------
+    message : Message
+        The message to process
+
+    Yields
+    ------
+    Response
+        Responses from memory operations
+    """
+    # Let the LLM evaluate the message using system prompt and tools
+    async for response in self._handle_conversation(
+      message
+    ):
+      yield response

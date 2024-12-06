@@ -9,12 +9,17 @@ dependencies = [
     "litellm>=1.40.14",
     "python-frontmatter>=1.1.0",
     "loguru>=0.7.2",
-    "chromadb>=0.5.5",
+    "chromadb>=0.5.20",
     "sentence-transformers>=3.0.1",
     "pytest-asyncio>=0.24.0",
     "newspaper3k>=0.2.8",
     "lxml[html_clean]>=5.3.0",
-    "pydantic>=2.9.2",
+    "pydantic===2.10.1",
+    # Bug in Chainlit requires this version
+    "function-schema>=0.4.4",
+    "matplotlib>=3.9.2",
+    "networkx>=3.4.2",
+    "jinja2>=3.1.4",
 ]
 readme = "README.md"
 requires-python = ">=3.12.4"
@@ -44,16 +49,11 @@ packages = ["src", "examples"]
 
 [tool.rye.scripts]
 precommit = "pre-commit run --all-files"
-ch02_basic = "chainlit run src/ch02/winston_basic.py"
-ch02_history = "chainlit run src/ch02/winston_history.py"
-ch02_streaming = "chainlit run src/ch02/winston_streaming.py"
-ch02_tool = "chainlit run src/ch02/winston_tool.py"
-ch03_greeting = "chainlit run src/ch03/winston_greeting.py"
-ch03_advanced = "chainlit run src/ch03/winston_advanced.py"
-ch03_router = "chainlit run src/ch03/winston_router.py"
-ch04_knows = "chainlit run src/ch04/winston_knows.py"
-ch05_converses = "chainlit run src/ch05/winston_converses.py"
-ch05_ponders = "chainlit run src/ch05/winston_ponders.py"
-ch05_remembers = "chainlit run src/ch05/winston_remembers.py"
-donald_goals = "chainlit run --port 8003 src/ch07/donald_goals.py -w"
-donald_qa = "chainlit run --port 8003 src/ch07/donald_qa.py -w"
+ch02_chat = "chainlit run examples/ch02/winston_chat.py"
+ch02_tool = "chainlit run examples/ch02/winston_tool.py"
+ch03_memory = "chainlit run examples/ch03/winston_memory.py"
+ch03_multimodal = "chainlit run examples/ch03/winston_multimodal.py"
+ch03_reasoning = "chainlit run examples/ch03/winston_reasoning.py"
+ch03_planning = "chainlit run examples/ch03/winston_planning.py"
+ch03_metacognition = "chainlit run examples/ch03/winston_metacognition.py"
+ch04_enhanced_memory = "chainlit run examples/ch04/winston_enhanced_memory.py"

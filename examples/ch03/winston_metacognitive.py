@@ -13,9 +13,7 @@ class MetacognitiveAgent(BaseAgent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Analyze and refine the shared workspace."""
-    _, shared_workspace = (
-      self._get_workspaces(message)
-    )
+    _, shared_workspace = self._get_workspaces(message)
     if not shared_workspace:
       return
 
@@ -55,7 +53,7 @@ class MetacognitiveAgent(BaseAgent):
     analysis_response = await self.generate_response(
       Message(
         content=reflection_prompt,
-        metadata={"type": "Metacognitive Analysis"},
+        metadata=message.metadata,
       )
     )
 
@@ -83,7 +81,7 @@ class MetacognitiveAgent(BaseAgent):
     update_response = await self.generate_response(
       Message(
         content=update_prompt,
-        metadata={"type": "Workspace Update"},
+        metadata=message.metadata,
       )
     )
 
@@ -103,5 +101,5 @@ class MetacognitiveAgent(BaseAgent):
     )
     yield Response(
       content=update_response.content,
-      metadata={"type": "Metacognitive Refinement"},
+      metadata=message.metadata,
     )

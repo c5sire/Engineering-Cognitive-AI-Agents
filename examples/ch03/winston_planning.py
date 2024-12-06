@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import AsyncIterator
 
+from jinja2 import Template
+
 from winston.core.agent import AgentConfig, BaseAgent
 from winston.core.messages import Message, Response
 from winston.core.paths import AgentPaths
@@ -25,9 +27,6 @@ class PlanningAgent(BaseAgent):
     message: Message,
   ) -> AsyncIterator[Response]:
     """Develop initial plan in private workspace."""
-    print(
-      f"PlanningWinston processing: {message.content}"
-    )
 
     # Check if planning/execution needed
     needs_planning = self._needs_planning(message)
@@ -40,30 +39,23 @@ class PlanningAgent(BaseAgent):
       self._get_workspaces(message)
     )
 
-    shared_context = ""
-    if shared_workspace:
-      shared_context = f"""
-      And considering the shared context:
-      {shared_workspace}
-      """
-
-    accumulated_content: list[str] = []
+    accumulated_content = ""
 
     if needs_planning:
       async for result in self._develop_plan(
         message,
         private_workspace,
-        shared_context,
+        shared_workspace,
       ):
-        accumulated_content.append(result.content)
+        accumulated_content += result.content
         yield result
     else:
       async for result in self._execute_step(
         message,
         private_workspace,
-        shared_context,
+        shared_workspace,
       ):
-        accumulated_content.append(result.content)
+        accumulated_content += result.content
         yield result
 
     if not accumulated_content:
@@ -71,43 +63,33 @@ class PlanningAgent(BaseAgent):
 
     await self._update_workspaces(
       Message(
-        content="".join(accumulated_content),
-        metadata={
-          **message.metadata,
-          "type": "Planning",
-        },
+        content=accumulated_content,
+        metadata=message.metadata,
       ),
+      update_category="Planning and execution",
     )
 
   async def _develop_plan(
     self,
     message: Message,
     private_workspace: str,
-    shared_context: str,
+    shared_workspace: str | None,
   ) -> AsyncIterator[Response]:
     """Develop initial plan privately."""
-    response_prompt = f"""
-    Create an initial plan for:
-    {message.content}
-
-    Using your private context:
-    {private_workspace}
-
-    {shared_context}
-
-    Develop a draft plan including:
-    1. Initial goal analysis
-    2. Preliminary steps
-    3. Potential challenges
-    4. Resource requirements
-    """
+    response_prompt = self.config.render_system_prompt(
+      {
+        "message": message.content,
+        "private_workspace": private_workspace,
+        "shared_workspace": shared_workspace,
+      }
+    )
 
     async for (
       response
     ) in self.generate_streaming_response(
       Message(
         content=response_prompt,
-        metadata={"type": "Private Planning"},
+        metadata=message.metadata,
       )
     ):
       yield response
@@ -116,33 +98,40 @@ class PlanningAgent(BaseAgent):
     self,
     message: Message,
     private_workspace: str,
-    shared_context: str,
+    shared_workspace: str | None,
   ) -> AsyncIterator[Response]:
     """Prepare for plan execution privately."""
 
-    print(f"Executing step: {message.content}")
-
-    execution_prompt = f"""
-    Regarding execution request:
-    {message.content}
+    execution_prompt = Template("""
+    Regardingthe plan execution request:
+    {{ message.content }}
 
     Review private execution context:
-    {private_workspace}
+    {{ private_workspace }}
 
-    {shared_context}
+    {% if shared_workspace %}
+    And considering the shared context:
+    {{ shared_workspace }}
+    {% endif %}
 
-    Prepare execution by:
-    1. Identifying relevant plan steps
+    Simulate execution of the plan by:
+    1. Identifying the next relevant plan step
     2. Checking prerequisites
     3. Noting potential issues
-    """
+    4. Simulating outcomes and side-effects
+    5. Indicate when plan execution is complete (i.e., no more steps are needed)
+    """).render(
+      message=message,
+      private_workspace=private_workspace,
+      shared_workspace=shared_workspace,
+    )
 
     async for (
       response
     ) in self.generate_streaming_response(
       Message(
         content=execution_prompt,
-        metadata={"type": "Private Execution Prep"},
+        metadata=message.metadata,
       )
     ):
       yield response
@@ -191,7 +180,8 @@ class PlanningWinstonChat(AgentChat):
 
   def create_agent(self, system: System) -> Agent:
     config = AgentConfig.from_yaml(
-      self.paths.config / "agents/winston_plan.yaml"
+      self.paths.config
+      / "agents/winston_planning.yaml"
     )
     return PlanningAgent(
       system=system,

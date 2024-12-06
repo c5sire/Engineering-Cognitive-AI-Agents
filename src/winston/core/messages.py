@@ -126,12 +126,16 @@ class Message(BaseModel):
 
 
 class Response(BaseModel):
-  """Universal response format."""
+  """Enhanced response model."""
 
   content: str
+  step_name: str | None = (
+    None  # For grouping related steps and nesting
+  )
   metadata: dict[str, Any] = Field(
     default_factory=dict
   )
+  streaming: bool = False
   timestamp: datetime = Field(
     default_factory=lambda: datetime.now(timezone.utc)
   )
